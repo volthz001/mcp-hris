@@ -287,11 +287,3 @@ Dokumen laporan kerja praktek ini adalah hak cipta Universitas Pamulang dan PT. 
 **Versi Aplikasi:** 1.0.0
 ```
 
----
-
-### Catatan:
-1. **Ganti [isi NIM] dengan NIM asli** masing-masing penulis.
-2. **Tambahkan nama dosen pembimbing** jika ada.
-3. **Pastikan folder `/images` berisi semua file screenshot** dengan nama yang sesuai (dashboard.png, kasbon_admin.png, dst.).  
-   Jika Anda belum memiliki screenshot, buat sementara file kosong atau placeholder, lalu ganti setelah screenshot diambil.
-4. README ini sudah mencakup elemen laporan kerja praktek: abstrak, fitur, arsitektur, hasil pengujian, kesimpulan, dan identitas penulis.
