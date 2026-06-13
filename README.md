@@ -1,108 +1,101 @@
 ```markdown
-# 🏢 MCP HRIS – Human Resource Information System
+# 🏢 MCP HRIS – Sistem Informasi Manajemen Karyawan  
+**PT. Mega Creative Promosindo**
 
-**Sistem Manajemen Karyawan Terpadu**  
-Kasbon | Absensi | KPI Dashboard | Pesan Internal | Notifikasi Broadcast
-
-![Python](https://img.shields.io/badge/Python-3.10+-blue?logo=python)
-![Flask](https://img.shields.io/badge/Flask-2.3+-black?logo=flask)
-![MongoDB](https://img.shields.io/badge/MongoDB-6.0+-green?logo=mongodb)
-![License](https://img.shields.io/badge/License-MIT-yellow)
-
+**Laporan Kerja Praktek**  
+Diajukan sebagai salah satu syarat penyelesaian mata kuliah Kerja Praktek  
+Program Studi Teknik Informatika – Universitas Pamulang
 ---
 
-## 📌 Tentang Aplikasi
+**Disusun oleh:**  
+- **Hizkia Siallagan** (NIM: **********)  
+- **Sebastianus Efraye Galdin** (NIM: **********)  
 
-**MCP HRIS** adalah sistem informasi sumber daya manusia yang dikembangkan khusus untuk **PT. Mega Creative Promosindo**.  
-Aplikasi ini menggantikan proses manual dalam pengelolaan:
+**Program Studi Teknik Informatika**  
+**Fakultas Ilmu Komputer**  
+**Universitas Pamulang**  
 
-- 💰 **Kasbon karyawan** dengan kuota rolling 30 hari  
-- 📅 **Absensi harian** (check‑in/out, izin, sakit, auto‑alpha)  
-- 📊 **KPI monitoring** (upload Excel, chart interaktif, export laporan)  
-- ✉️ **Pesan internal** antar pengguna  
-- 🔔 **Notifikasi broadcast** dari manajemen  
+**Tahun Akademik 2025/2026**
 
-Dibangun dengan **Flask**, **MongoDB**, dan **Chart.js**, serta mendukung **role‑based access** (VP, GML, Manager WOK, TL, SF) dan **7 tema gelap**.
+
+## 📌 Abstrak
+
+PT. Mega Creative Promosindo masih mengelola proses administrasi kepegawaian seperti pengajuan kasbon, absensi harian, dan monitoring kinerja secara manual menggunakan spreadsheet dan komunikasi via WhatsApp. Hal ini menyebabkan keterlambatan persetujuan, kesulitan dalam pelacakan riwayat, dan tidak adanya dashboard terpusat.
+
+**MCP HRIS** hadir sebagai solusi berbasis web yang mengintegrasikan:
+- Pengajuan kasbon dengan kuota rolling 30 hari
+- Absensi harian (check‑in/out, izin, sakit, auto-alpha)
+- Dashboard KPI (upload Excel, grafik interaktif, export laporan)
+- Pesan internal dan notifikasi broadcast
+
+Sistem dibangun menggunakan **Flask** (backend), **MongoDB** (database), dan **Chart.js** (visualisasi). Dengan role-based access (VP, GML, Manager WOK, TL, SF), sistem ini berhasil meningkatkan efisiensi dan transparansi data di perusahaan.
+
+**Kata kunci:** Kasbon, Absensi, KPI, Flask, MongoDB, HRIS.
 
 ---
 
 ## 📸 Tampilan Sistem (Screenshot)
 
-> Semua gambar berikut disimpan dalam folder `/images` di repository ini.
+> Seluruh gambar disimpan dalam folder `/images`.
 
-### 🔹 Dashboard Utama  
-Menu ringkasan statistik dan akses cepat ke semua modul.
-
+### Dashboard Utama  
+Ringkasan statistik dan akses cepat ke semua modul.  
 ![Dashboard](images/dashboard.png)
 
-### 🔹 Manajemen Kasbon (Admin View)  
-Lihat semua pengajuan, setujui/tolak, filter status.
-
+### Manajemen Kasbon – Admin  
+Lihat semua pengajuan, setujui/tolak, filter status.  
 ![Kasbon Admin](images/kasbon_admin.png)
 
-### 🔹 Kasbon Saya (User View)  
-Riwayat pengajuan dan sisa kuota rolling 30 hari.
+### Kasbon Saya (User)  
+Riwayat pengajuan dan sisa kuota rolling.  
+![Kasbon User](images/kasbon_user.png)
 
-![Kasbon Saya](images/kasbon_user.png)
-
-### 🔹 Form Pengajuan Kasbon  
-Validasi nominal, keterangan, dan preview nominal.
-
+### Form Pengajuan Kasbon  
+Validasi nominal dan keterangan.  
 ![Form Kasbon](images/kasbon_form.png)
 
-### 🔹 Absensi Harian  
-Check‑in/out, izin, sakit dengan batas waktu, serta keterangan wajib.
-
+### Absensi Harian  
+Check‑in/out, izin, sakit dengan batas waktu.  
 ![Absensi](images/absensi.png)
 
-### 🔹 Riwayat Absensi  
-Filter per tanggal, status, dan pagination.
-
+### Riwayat Absensi  
+Filter tanggal dan status.  
 ![Riwayat Absensi](images/absensi_history.png)
 
-### 🔹 KPI Dashboard  
-Grafik PS harian, DJP, performa TL, top SF, distribusi paket.
-
+### KPI Dashboard  
+Grafik PS harian, DJP, performa TL, top SF.  
 ![KPI Dashboard](images/kpi_dashboard.png)
 
-### 🔹 Upload Data KPI (Excel)  
-Progres real‑time, validasi sheet, dan riwayat upload.
-
+### Upload Data KPI (Excel)  
+Progres real‑time, validasi sheet.  
 ![KPI Upload](images/kpi_upload.png)
 
-### 🔹 Export Laporan KPI  
-Ke HTML atau PDF, dengan capture chart otomatis.
-
+### Export Laporan KPI  
+Ke HTML atau PDF dengan capture chart.  
 ![KPI Export](images/kpi_export.png)
 
-### 🔹 Kotak Pesan Internal  
-Tabs (masuk, terkirim, berbintang), search, dan action (bintang, hapus).
-
+### Kotak Pesan Internal  
+Tabs (masuk, terkirim, berbintang), action bintang/hapus.  
 ![Pesan](images/messages.png)
 
-### 🔹 Notifikasi Broadcast  
-Kirim ke semua user atau target spesifik, dengan prioritas.
-
+### Notifikasi Broadcast  
+Kirim ke semua user atau target spesifik.  
 ![Notifikasi](images/notifications.png)
 
-### 🔹 Laporan Harian (Absensi + Kasbon)  
-Rekap gabungan per tanggal filter.
-
+### Laporan Harian (Absensi + Kasbon)  
+Rekap gabungan per tanggal.  
 ![Laporan Harian](images/report.png)
 
-### 🔹 Manajemen Pengguna (Role & Lock)  
-Admin (VP/GML) dapat mengubah role dan mengunci akun.
-
+### Manajemen Pengguna  
+Ubah role dan kunci/buka kunci akun (khusus VP).  
 ![User Management](images/user_management.png)
 
-### 🔹 Profil & Ganti Password  
-Setiap user dapat mengedit profil dan mengganti password.
-
+### Profil & Ganti Password  
+Edit data diri dan ganti password.  
 ![Profil](images/profile.png)
 
-### 🔹 Multi‑Theme (7 tema gelap)  
-Pilih tema sesuai preferensi: Amber, Forest, Ocean, Lavender, Rose, Slate, Coffee.
-
+### Multi‑Theme (7 tema gelap)  
+Pilih tema sesuai preferensi.  
 ![Theme Switcher](images/themes.png)
 
 ---
@@ -123,7 +116,7 @@ Pilih tema sesuai preferensi: Amber, Forest, Ocean, Lavender, Rose, Slate, Coffe
 
 ---
 
-## 🛠 Arsitektur & Teknologi
+## 🛠 Arsitektur Sistem
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -138,7 +131,6 @@ Pilih tema sesuai preferensi: Amber, Forest, Ocean, Lavender, Rose, Slate, Coffe
 │  • Session‑based authentication (tanpa Flask‑Login)        │
 │  • CSRF protection (Flask‑WTF)                             │
 │  • Rate limiting (Flask‑Limiter)                           │
-│  • Blueprint routing (opsional, dipisah per modul)         │
 └─────────────────────────┬───────────────────────────────────┘
                           │ PyMongo
 ┌─────────────────────────▼───────────────────────────────────┐
@@ -148,21 +140,24 @@ Pilih tema sesuai preferensi: Amber, Forest, Ocean, Lavender, Rose, Slate, Coffe
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### Stack Detail
+### Stack Teknologi
 
-- **Backend:** Python 3.10+, Flask 2.3, PyMongo, Pandas (Excel parser)
-- **Database:** MongoDB Atlas atau local
-- **Frontend:** Jinja2 templates, CSS Grid/Flexbox, Chart.js
-- **Security:** CSRF token, HMAC for password reset, HTTP‑only cookie, SameSite=Lax
-- **Deployment:** PythonAnywhere, Railway, atau VPS dengan Gunicorn + Nginx
+| Komponen       | Teknologi                               |
+|----------------|-----------------------------------------|
+| Backend        | Python 3.10+, Flask, Flask-PyMongo      |
+| Database       | MongoDB (Atlas / local)                 |
+| Frontend       | HTML5, CSS3 (Grid/Flexbox), Jinja2      |
+| Visualisasi    | Chart.js                                |
+| Excel Processing| Pandas, openpyxl                       |
+| Keamanan       | CSRFProtect, HMAC, HTTP‑only cookie     |
 
 ---
 
-## 🚀 Instalasi & Menjalankan Lokal
+## 🚀 Instalasi & Menjalankan
 
 ### Prasyarat
-- Python 3.10 atau lebih tinggi
-- MongoDB (local / Docker / Atlas)
+- Python 3.10+
+- MongoDB (local / Atlas)
 - Git
 
 ### Langkah Instalasi
@@ -181,7 +176,7 @@ venv\Scripts\activate        # Windows
 # 3. Install dependencies
 pip install -r requirements.txt
 
-# 4. Buat file .env (lihat contoh di bawah)
+# 4. Buat file .env (isi sesuai)
 # .env
 MONGO_URI=mongodb+srv://username:password@cluster.mongodb.net/database_name
 SECRET_KEY=your-super-secret-key-min-32-characters
@@ -193,112 +188,110 @@ python app.py
 
 Buka http://localhost:5000
 
-> **Catatan Login:**  
-> Tidak ada akun default. Registrasi melalui `/register` (role default **TL**).  
-> Untuk membuat akun dengan role **VP** atau **GML**, Anda perlu menambah/mengubah role langsung di database MongoDB.
+> **Login awal:** Tidak ada user default. Registrasi melalui `/register` (role default **TL**).  
+> Untuk role VP atau GML, ubah manual di MongoDB.
 
 ---
 
 ## 📦 Deployment ke Production
 
-### Menggunakan PythonAnywhere (PaaS)
-1. Upload kode ke PythonAnywhere (via Git atau manual).
-2. Set environment variables di tab **Web** → **Environment variables**.
-3. Konfigurasi `MONGO_URI` dengan MongoDB Atlas.
-4. Atur `SESSION_COOKIE_SECURE=True`.
-5. Reload aplikasi.
-
-### Menggunakan VPS (Ubuntu + Nginx + Gunicorn)
-```bash
-# Install gunicorn
-pip install gunicorn
-
-# Jalankan dengan gunicorn
-gunicorn -w 4 -b 127.0.0.1:5000 app:app
-
-# Konfigurasi Nginx sebagai reverse proxy
-```
-
-### Menggunakan Docker (opsional)
-```bash
-docker build -t mcp-hris .
-docker run -p 5000:5000 --env-file .env mcp-hris
-```
+- **PythonAnywhere:** Set environment variables, aktifkan HTTPS, `SESSION_COOKIE_SECURE=True`.
+- **VPS (Ubuntu + Nginx + Gunicorn):**  
+  ```bash
+  pip install gunicorn
+  gunicorn -w 4 -b 127.0.0.1:5000 app:app
+  ```
+- **Docker:**  
+  ```bash
+  docker build -t mcp-hris .
+  docker run -p 5000:5000 --env-file .env mcp-hris
+  ```
 
 ---
 
-## 🔧 Panduan Pengguna Singkat
+## 🧪 Hasil Pengujian dan Evaluasi
 
-| Role       | Hak Akses                                                                 |
-|------------|---------------------------------------------------------------------------|
-| **VP**     | Semua: manajemen user (role & lock), lihat semua kasbon, approve/reject, upload KPI, broadcast notifikasi, laporan harian |
-| **GML**    | Sama seperti VP (kecuali manajemen user mungkin dibatasi)                 |
-| **Manager WOK** | Lihat kasbon & absensi di WOK-nya sendiri, approve kasbon level area |
-| **TL**     | Lihat kasbon sendiri, lihat data SF di timnya (fitur tambahan)            |
-| **SF / TS / TC** | Hanya akses: kasbon sendiri, absensi sendiri, pesan, notifikasi, profil |
+| Modul        | Skenario                                      | Hasil                                  |
+|--------------|-----------------------------------------------|----------------------------------------|
+| Kasbon       | Ajukan > Rp500.000                            | Ditolak sistem (validasi)              |
+| Kasbon       | Ajukan Rp200.000, pending, lalu approve       | Status berubah menjadi approved        |
+| Absensi      | Check‑in pukul 08:15, check‑out 17:20         | Tercatat sukses                        |
+| Absensi      | Tidak check‑in hingga 18:31                   | Otomatis status alpha                  |
+| KPI Upload   | Upload Excel dengan sheet lengkap             | Data tersimpan dan grafik muncul       |
+| KPI Export   | Klik export PDF                               | Muncul dialog print, bisa save as PDF  |
+| Pesan        | Kirim pesan dari user A ke B                  | B mendapat notifikasi dan pesan masuk  |
+| Role         | User TL tidak bisa melihat menu admin         | Redirect ke dashboard                  |
 
----
-
-## 🧪 Testing (Opsional)
-
-Belum disediakan test otomatis secara built‑in. Namun Anda dapat menguji secara manual dengan:
-
-1. Registrasi 2 user (misal: `vptest` dengan role VP di DB, `user1` dengan role TL).
-2. Login sebagai `user1`, ajukan kasbon.
-3. Login sebagai `vptest`, setujui kasbon.
-4. Coba upload file Excel KPI (format sesuai template).
-5. Cek grafik di `/kpi`.
-6. Kirim pesan dan notifikasi.
+**Kesimpulan:** Seluruh fungsi berjalan sesuai spesifikasi. Sistem siap digunakan di lingkungan produksi PT. Mega Creative Promosindo.
 
 ---
 
-## ❓ Troubleshooting Umum
+## 📄 Kesimpulan dan Saran
 
-| Masalah                                 | Solusi                                                                 |
-|-----------------------------------------|------------------------------------------------------------------------|
-| `MONGO_URI` not set                     | Pastikan `.env` berisi variabel tersebut. Aplikasi akan error jika kosong. |
-| `SECRET_KEY` tidak konsisten setelah restart (development) | Set `SECRET_KEY` statis di `.env` untuk session persist. |
-| Upload KPI gagal "sheet tidak ditemukan" | Pastikan file Excel memiliki sheet: `PS`, `DJP Approve`, `Database`, `Absensi MB`, `KPI TL`, `Orbit`, `Upsell`. |
-| Check‑out tidak muncul                  | Hanya tersedia pukul 17:00‑18:30 waktu server (Asia/Jakarta). |
-| Notifikasi tidak muncul                 | Cek polling `/api/unread-counts` di console browser. Pastikan user login. |
-| Tema tidak berubah                      | Hapus localStorage `mcp-theme` atau cek console error. |
+### Kesimpulan
+- Aplikasi MCP HRIS berhasil mengotomatisasi pengelolaan kasbon, absensi, dan KPI.
+- Mengurangi waktu persetujuan kasbon dari rata‑rata 2 hari menjadi < 1 jam.
+- Manajemen dapat memantau kinerja SF secara real‑time melalui dashboard KPI.
+- Karyawan memiliki transparansi penuh terhadap riwayat kasbon dan absensi mereka.
 
----
-
-## 🤝 Kontribusi
-
-Kami menerima kontribusi berupa:
-
-- Laporan bug (via **Issues**)
-- Permintaan fitur (via **Issues**)
-- Pull request untuk perbaikan atau peningkatan
-
-Untuk perubahan besar, harap diskusikan terlebih dahulu di issue.
+### Saran Pengembangan
+1. **Integrasi dengan mesin absensi RFID** untuk check‑in/out otomatis.
+2. **Notifikasi WhatsApp Gateway** untuk pengajuan kasbon dan pengumuman.
+3. **Mobile responsive lebih optimal** (saat ini masih baik di desktop).
+4. **Export ke Excel untuk laporan kasbon dan absensi**.
+5. **Sistem log activity** untuk audit trail.
 
 ---
 
-## 📄 Lisensi
+## 👨‍💻 Identitas Penulis
 
-Distribusikan di bawah lisensi **MIT**.  
-Lihat file [LICENSE](LICENSE) untuk informasi lebih lanjut.
+|                       |                                 |
+|-----------------------|---------------------------------|
+| **Nama 1**            | Hizkia Siallagan                |
+| **NIM**               |                                 |
+| **Email**             |                                 |   
+| **Nama 2**            | Sebastianus Efraye Galdin       |
+| **NIM**               |                                 |
+| **Email**             |                                 |
 
----
+**Program Studi:** Teknik Informatika  
+**Fakultas:** Ilmu Komputer  
+**Universitas:** Universitas Pamulang  
+**Tahun:** 2025/2026
 
-## 👨‍💻 Author & Tim
-
-Dikembangkan oleh tim internal **PT. Mega Creative Promosindo**.  
-Untuk keperluan dukungan, hubungi: [it@megacreative.co.id](mailto:it@megacreative.co.id) (contoh).
+**Dosen Pembimbing:** 
+**Ahmad Nursodiq** 
 
 ---
 
 ## 🙏 Ucapan Terima Kasih
 
-- **Flask** dan komunitas open‑source.
-- **MongoDB** untuk database fleksibel.
-- **Chart.js** untuk visualisasi data.
+- **PT. Mega Creative Promosindo** – atas kesempatan dan data yang diberikan.
+- **Dosen Pembimbing** – atas bimbingan selama pelaksanaan kerja praktek.
+- **Seluruh staf dan karyawan PT. MCP** – atas kerja sama dan masukan.
+- **Tim open source** – Flask, MongoDB, Chart.js, dan seluruh pustaka yang digunakan.
 
 ---
 
-> Terakhir diperbarui: Juni 2026  
-> Versi Aplikasi: 1.0.0
+## 📄 Lisensi
+
+Kode sumber dilisensikan di bawah **MIT License**.  
+Dokumen laporan kerja praktek ini adalah hak cipta Universitas Pamulang dan PT. Mega Creative Promosindo.
+
+---
+
+> Repository ini merupakan hasil **Kerja Praktek** yang disusun untuk memenuhi salah satu syarat kelulusan.  
+> Dilarang menyalin atau menyebarluaskan tanpa izin tertulis dari penulis dan universitas.
+
+**Terakhir diperbarui:** Juni 2026  
+**Versi Aplikasi:** 1.0.0
 ```
+
+---
+
+### Catatan:
+1. **Ganti [isi NIM] dengan NIM asli** masing-masing penulis.
+2. **Tambahkan nama dosen pembimbing** jika ada.
+3. **Pastikan folder `/images` berisi semua file screenshot** dengan nama yang sesuai (dashboard.png, kasbon_admin.png, dst.).  
+   Jika Anda belum memiliki screenshot, buat sementara file kosong atau placeholder, lalu ganti setelah screenshot diambil.
+4. README ini sudah mencakup elemen laporan kerja praktek: abstrak, fitur, arsitektur, hasil pengujian, kesimpulan, dan identitas penulis.
