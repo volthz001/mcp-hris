@@ -33,74 +33,52 @@ Sistem dibangun menggunakan **Flask** (backend), **MongoDB** (database), dan **C
 **Kata kunci:** Kasbon, Absensi, KPI, Flask, MongoDB, HRIS.
 
 ---
-
 ## 📸 Tampilan Sistem (Screenshot)
 
-> Seluruh gambar disimpan dalam folder `/images`.
-
-### Dashboard Utama  
-Ringkasan statistik dan akses cepat ke semua modul.  
+### Dashboard Utama
 ![Dashboard](images/dashboard.png)
 
-### Manajemen Kasbon – Admin  
-Lihat semua pengajuan, setujui/tolak, filter status.  
+### Manajemen Kasbon – Admin
 ![Kasbon Admin](images/kasbon_admin.png)
 
-### Kasbon Saya (User)  
-Riwayat pengajuan dan sisa kuota rolling.  
+### Kasbon Saya (User)
 ![Kasbon User](images/kasbon_user.png)
 
-### Form Pengajuan Kasbon  
-Validasi nominal dan keterangan.  
+### Form Pengajuan Kasbon
 ![Form Kasbon](images/kasbon_form.png)
 
-### Absensi Harian  
-Check‑in/out, izin, sakit dengan batas waktu.  
+### Absensi Harian
 ![Absensi](images/absensi.png)
 
-### Riwayat Absensi  
-Filter tanggal dan status.  
+### Riwayat Absensi
 ![Riwayat Absensi](images/absensi_history.png)
 
-### KPI Dashboard  
-Grafik PS harian, DJP, performa TL, top SF.  
+### KPI Dashboard
 ![KPI Dashboard](images/kpi_dashboard.png)
 
-### Upload Data KPI (Excel)  
-Progres real‑time, validasi sheet.  
+### Upload Data KPI (Excel)
 ![KPI Upload](images/kpi_upload.png)
 
-### Export Laporan KPI  
-Ke HTML atau PDF dengan capture chart.  
+### Export Laporan KPI
 ![KPI Export](images/kpi_export.png)
 
-### Kotak Pesan Internal  
-Tabs (masuk, terkirim, berbintang), action bintang/hapus.  
+### Kotak Pesan Internal
 ![Pesan](images/messages.png)
 
-### Notifikasi Broadcast  
-Kirim ke semua user atau target spesifik.  
+### Notifikasi Broadcast
 ![Notifikasi](images/notifications.png)
 
-### Laporan Harian (Absensi + Kasbon)  
-Rekap gabungan per tanggal.  
+### Laporan Harian (Absensi + Kasbon)
 ![Laporan Harian](images/report.png)
 
-### Manajemen Pengguna  
-Ubah role dan kunci/buka kunci akun (khusus VP).  
+### Manajemen Pengguna
 ![User Management](images/user_management.png)
 
-### Profil & Ganti Password  
-Edit data diri dan ganti password.  
+### Profil & Ganti Password
 ![Profil](images/profile.png)
 
-### Multi‑Theme (7 tema gelap)  
-Pilih tema sesuai preferensi.  
-![Theme Switcher](images/themes.png)
-
----
-
-## ✨ Fitur Lengkap
+### Multi‑Theme (7 tema gelap)
+![Theme Switcher](images/themes.png)## ✨ Fitur Lengkap
 
 | Modul          | Fitur                                                                 |
 |----------------|-----------------------------------------------------------------------|
