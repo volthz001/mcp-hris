@@ -1,0 +1,309 @@
+{% extends "base.html" %}
+
+{% block title %}KPI Dashboard – {{ wok }} {{ bulan_label }} {{ year }}{% endblock %}
+
+{% block extra_style %}
+<style>
+  /* ── Chart grid ── */
+  .chart-grid   { display: grid; gap: 16px; margin-bottom: 20px; }
+  .chart-grid-2 { grid-template-columns: 1fr 1fr; }
+  .chart-grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+  .chart-wrap   { position: relative; height: 260px; }
+  .chart-wrap-sm{ position: relative; height: 200px; }
+  .chart-wrap-lg{ position: relative; height: 320px; }
+
+  /* ── Filter bar override (compact) ── */
+  .kpi-filter { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 20px; }
+  .kpi-filter select, .kpi-filter input { width: auto; min-width: 120px; padding: 7px 11px; font-size: 13px; }
+
+  /* ── Upload badge ── */
+  .upload-badge { display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: 11px; padding: 4px 10px; border-radius: 4px; background: var(--success-dim); color: var(--success); border: 1px solid rgba(16,185,129,.25); }
+  .upload-badge.locked { background: var(--accent-dim); color: var(--accent); border-color: rgba(245,158,11,.25); }
+  .upload-badge.empty  { background: var(--danger-dim); color: var(--danger); border-color: rgba(239,68,68,.25); }
+
+  /* ── Section title ── */
+  .section-title { font-family: var(--font-mono); font-size: 10px; letter-spacing: 2px; color: var(--text-muted); text-transform: uppercase; display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+  .section-title::after { content:''; flex:1; height:1px; background:var(--border); }
+
+  /* ── Export dropdown ── */
+  .export-group { position: relative; display: inline-flex; }
+  .export-menu { position: absolute; top: calc(100% + 6px); right: 0; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-md); min-width: 200px; box-shadow: var(--shadow-md); z-index: 999; overflow: hidden; display: none; }
+  .export-menu.open { display: block; }
+  .export-item { display: flex; align-items: center; gap: 10px; padding: 11px 16px; font-size: 13px; cursor: pointer; color: var(--text-secondary); transition: background .12s; border: none; background: none; width: 100%; text-align: left; }
+  .export-item:hover { background: var(--bg-hover); color: var(--text-primary); }
+  .export-item .ei-icon { font-size: 16px; }
+  .export-item .ei-label { font-weight: 500; }
+  .export-item .ei-sub { font-size: 10px; color: var(--text-muted); font-family: var(--font-mono); }
+  .export-sep { height: 1px; background: var(--border); margin: 4px 0; }
+
+  /* ── Progress overlay ── */
+  .export-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.65); display: flex; align-items: center; justify-content: center; z-index: 9999; backdrop-filter: blur(4px); display: none; }
+  .export-overlay.show { display: flex; }
+  .export-progress { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 32px 40px; text-align: center; min-width: 280px; }
+  .ep-spinner { width: 40px; height: 40px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; margin: 0 auto 16px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .ep-title { font-size: 15px; font-weight: 600; color: var(--text-primary); margin-bottom: 6px; }
+  .ep-sub { font-size: 12px; color: var(--text-muted); font-family: var(--font-mono); }
+
+  /* ── Version info badge ── */
+  .version-tag { display: inline-flex; align-items: center; gap: 5px; font-family: var(--font-mono); font-size: 10px; padding: 2px 8px; border-radius: 3px; background: rgba(59,130,246,.1); color: #60a5fa; border: 1px solid rgba(59,130,246,.2); }
+
+  /* ── DB table ── */
+  .db-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .db-table th, .db-table td { border: 1px solid var(--border); padding: 8px 12px; text-align: left; }
+  .db-table th { background: var(--bg-hover); font-family: var(--font-mono); font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--text-muted); }
+  .db-table tr:hover td { background: var(--bg-hover); }
+  .badge-aktif { display:inline-block; padding:2px 8px; border-radius:3px; font-size:10px; font-weight:600; background:rgba(16,185,129,.15); color:#10b981; }
+  .badge-nonaktif { display:inline-block; padding:2px 8px; border-radius:3px; font-size:10px; font-weight:600; background:rgba(239,68,68,.15); color:#ef4444; }
+
+  /* Modal styles */
+  .modal { display: none; position: fixed; z-index: 9999; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.6); backdrop-filter: blur(3px); }
+  .modal-content { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); width: 90%; max-width: 700px; margin: 5% auto; padding: 20px 24px; position: relative; box-shadow: var(--shadow-lg); animation: modalFadeIn 0.2s ease; }
+  @keyframes modalFadeIn { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
+  .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 12px; margin-bottom: 16px; }
+  .modal-header h3 { font-size: 18px; font-weight: 600; color: var(--accent); }
+  .modal-close { cursor: pointer; font-size: 24px; line-height: 1; color: var(--text-muted); }
+  .modal-close:hover { color: var(--danger); }
+  .modal-body { max-height: 60vh; overflow-y: auto; }
+  .detail-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .detail-table th, .detail-table td { border: 1px solid var(--border); padding: 8px 12px; text-align: left; }
+  .detail-table th { background: var(--bg-hover); font-family: var(--font-mono); font-size: 10px; }
+  .stat-card { cursor: pointer; transition: transform 0.1s ease; }
+  .stat-card:active { transform: scale(0.98); }
+
+  @media (max-width: 900px) { .chart-grid-2, .chart-grid-3 { grid-template-columns: 1fr; } }
+  @media print { .export-group, .kpi-filter, .btn, .page-title + div a, nav, .sidebar, .nav-sidebar, header .actions { display: none !important; } .card { break-inside: avoid; } .chart-grid-2, .chart-grid-3 { grid-template-columns: 1fr 1fr; } body { background: white !important; color: #111 !important; } }
+</style>
+{% endblock %}
+
+{% block page_title %}KPI Dashboard{% endblock %}
+{% block breadcrumb %}Analitik / KPI – {{ wok }} {{ bulan_label }} {{ year }}{% endblock %}
+
+{% block content %}
+
+<div class="export-overlay" id="exportOverlay"><div class="export-progress"><div class="ep-spinner"></div><div class="ep-title" id="epTitle">Menyiapkan export...</div><div class="ep-sub" id="epSub">Mohon tunggu sebentar</div></div></div>
+
+{% if flash_msg %}
+<div class="alert alert-{{ 'success' if flash_type == 'success' else ('warning' if flash_type == 'warning' else 'danger') }}" style="margin-bottom:16px;">{{ flash_msg }}</div>
+{% endif %}
+
+<div class="flex items-center justify-between mb-4" style="flex-wrap:wrap;gap:10px;">
+  <div><div class="page-title">KPI Monitoring — {{ wok }}</div><div class="page-desc">{{ bulan_label }} {{ year }}{% if last_update %}&nbsp;·&nbsp;<span class="text-mono" style="font-size:11px;">Last Update: {{ last_update }}</span>{% endif %}&nbsp;·&nbsp;<span class="version-tag">v{{ version or '1.0' }}</span></div></div>
+  <div class="flex gap-2" style="flex-wrap:wrap;align-items:center;">
+    {% if is_locked %}<span class="upload-badge locked">🔒 Data Terkunci &nbsp;·&nbsp; {{ uploaded_by }} &nbsp;·&nbsp; {{ upload_at }}</span>{% else %}<span class="upload-badge empty">⚠ Belum ada data</span>{% endif %}
+    <a href="{{ url_for('kpi_upload') }}" class="btn btn-primary btn-sm">⬆ Upload Excel</a>
+    <a href="{{ url_for('kpi_data') }}" class="btn btn-ghost btn-sm">📋 Lihat Data</a>
+    {% if is_locked %}
+    <div class="export-group" id="exportGroup"><button class="btn btn-ghost btn-sm" onclick="toggleExportMenu()" style="gap:6px;">⬇ Export &nbsp;<span style="font-size:9px;opacity:.6;">▾</span></button><div class="export-menu" id="exportMenu"><div style="padding:8px 16px 6px;font-family:var(--font-mono);font-size:9px;letter-spacing:1px;color:var(--text-muted);text-transform:uppercase;">Export Laporan</div><button class="export-item" onclick="exportHTML()"><span class="ei-icon">🌐</span><div><div class="ei-label">Export HTML</div><div class="ei-sub">Laporan interaktif · grafik lengkap</div></div></button><button class="export-item" onclick="exportPDF()"><span class="ei-icon">📄</span><div><div class="ei-label">Export PDF</div><div class="ei-sub">Print-ready · semua halaman</div></div></button><div class="export-sep"></div><button class="export-item" onclick="printDirect()"><span class="ei-icon">🖨</span><div><div class="ei-label">Print Langsung</div><div class="ei-sub">Browser print dialog</div></div></button></div></div>
+    {% endif %}
+    {% if session.role in ['VP','GML'] and is_locked %}<button class="btn btn-ghost btn-sm" onclick="unlockData()" style="color:var(--danger);">🔓 Buka Kunci</button>{% endif %}
+  </div>
+</div>
+
+<form method="get" action="{{ url_for('kpi') }}" class="kpi-filter card" style="padding:14px 18px;">
+  <div class="filter-group"><label>Bulan</label><select name="month">{% for num,nama in months_list %}<option value="{{ num }}" {% if num==month %}selected{% endif %}>{{ nama }}</option>{% endfor %}</select></div>
+  <div class="filter-group"><label>Tahun</label><input type="number" name="year" value="{{ year }}" min="2020" max="2030" style="width:90px;"></div>
+  <div class="filter-group"><label>WOK</label><select name="wok">{% for w in wok_list %}<option value="{{ w }}" {% if w==wok %}selected{% endif %}>{{ w }}</option>{% endfor %}</select></div>
+  <button type="submit" class="btn btn-primary btn-sm" style="margin-bottom:1px;">Tampilkan</button>
+</form>
+
+<div class="stat-grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin-bottom:20px;">
+  <div class="stat-card accent" data-metric="ps"><div class="stat-label">Total PS</div><div class="stat-value">{{ "{:,}".format(total_ps) }}</div><div class="stat-sub">Pasang Baru bulan ini</div></div>
+  <div class="stat-card blue" data-metric="djp"><div class="stat-label">Total DJP</div><div class="stat-value">{{ "{:,}".format(total_djp) }}</div><div class="stat-sub">Tugas DJP approved</div></div>
+  <div class="stat-card green" data-metric="briefing"><div class="stat-label">Briefing</div><div class="stat-value">{{ "{:,}".format(total_briefing) }}</div><div class="stat-sub">Morning briefing</div></div>
+  <div class="stat-card green" data-metric="sf_aktif"><div class="stat-label">SF Aktif</div><div class="stat-value">{{ sf_aktif }}</div><div class="stat-sub">dari {{ sf_total }} terdaftar</div></div>
+  <div class="stat-card red" data-metric="sf_nonaktif"><div class="stat-label">SF Non-Aktif</div><div class="stat-value">{{ sf_nonaktif }}</div><div class="stat-sub">Deleted / Inactive</div></div>
+  <div class="stat-card accent" data-metric="avg_arpu"><div class="stat-label">Avg ARPU</div><div class="stat-value" style="font-size:18px;">{{ "Rp {:,.0f}".format(avg_arpu) }}</div><div class="stat-sub">Total: Rp {{ "{:,.0f}".format(total_arpu) }}</div></div>
+    <!-- Stat card Team Leader (lama) dari master data -->
+  <div class="stat-card blue" data-metric="tl">
+    <div class="stat-label">Team Leader (Master)</div>
+    <div class="stat-value">{{ total_tl }}</div>
+    <div class="stat-sub">TL terdaftar di WOK</div>
+  </div>
+
+  <!-- Stat card baru: Team Leader Aktif (berdasarkan PS) -->
+  <div class="stat-card green" data-metric="tl_aktif">
+    <div class="stat-label">Team Leader Aktif (PS)</div>
+    <div class="stat-value">{{ total_tl_ps|default(0) }}</div>
+    <div class="stat-sub">TL dengan PS bulan ini</div>
+  </div><div class="stat-card info" data-metric="briefing_mb"><div class="stat-label">Briefing (Absensi MB)</div><div class="stat-value">{{ "{:,}".format(absensi_mb_count|default(0)) }}</div><div class="stat-sub">Total data absensi MB</div></div>
+  <div class="stat-card info" data-metric="shift_tl"><div class="stat-label">Shift TL (KPI TL)</div><div class="stat-value">{{ "{:,}".format(kpi_tl_count|default(0)) }}</div><div class="stat-sub">Jumlah baris TL</div></div>
+  <div class="stat-card info" data-metric="orbit"><div class="stat-label">Orbit</div><div class="stat-value">{{ "{:,}".format(orbit_count+1|default(0)) }}</div><div class="stat-sub">Total data Orbit</div></div>
+  <div class="stat-card info" data-metric="upsell"><div class="stat-label">Upsell</div><div class="stat-value">{{ "{:,}".format(upsell_count+1|default(0)) }}</div><div class="stat-sub">Total data Upsell</div></div>
+</div>
+
+<div class="section-title">📋 Sheet PS — Tren Harian</div>
+<div class="card mb-6"><div class="card-header"><div><div class="card-title">PS Harian — {{ bulan_label }} {{ year }}</div><div class="card-subtitle">Jumlah pasang baru per tanggal · {{ wok }}</div></div></div><div class="chart-wrap" style="height:240px;"><canvas id="chartPsHarian"></canvas></div></div>
+
+<div class="section-title">📋 Sheet DJP Approve — Aktivitas Harian</div>
+<div class="chart-grid chart-grid-2 mb-6">
+  <div class="card"><div class="card-header"><div><div class="card-title">DJP & Briefing Harian</div><div class="card-subtitle">Aktivitas per tanggal</div></div></div><div class="chart-wrap"><canvas id="chartDjpHarian"></canvas></div></div>
+  <div class="card"><div class="card-header"><div><div class="card-title">Distribusi Kategori PS</div><div class="card-subtitle">New Sales vs Upsell dll.</div></div></div><div class="chart-wrap"><canvas id="chartKategori"></canvas></div></div>
+</div>
+
+<div class="section-title">📋 Sheet PS+DJP — Performa per Team Leader</div>
+<div class="chart-grid chart-grid-2 mb-6">
+  <div class="card"><div class="card-header"><div><div class="card-title">PS per Team Leader</div><div class="card-subtitle">Total PS di bawah masing-masing TL</div></div></div><div class="chart-wrap-lg"><canvas id="chartTlPs"></canvas></div></div>
+  <div class="card"><div class="card-header"><div><div class="card-title">DJP per Team Leader</div><div class="card-subtitle">Total DJP approved per supervisor</div></div></div><div class="chart-wrap-lg"><canvas id="chartTlDjp"></canvas></div></div>
+</div>
+
+<div class="section-title">📋 Sheet PS — Top Sales Force & Paket</div>
+<div class="chart-grid chart-grid-2 mb-6">
+  <div class="card"><div class="card-header"><div><div class="card-title">Top 15 SF — Produksi PS</div><div class="card-subtitle">Sales Force dengan PS tertinggi</div></div></div><div class="chart-wrap-lg"><canvas id="chartTopSf"></canvas></div></div>
+  <div class="card"><div class="card-header"><div><div class="card-title">Distribusi Paket</div><div class="card-subtitle">Breakdown produk yang terjual</div></div></div><div class="chart-wrap-lg"><canvas id="chartPaket"></canvas></div></div>
+</div>
+
+{% if db_sf_list %}
+<div class="section-title">📋 Sheet Database — Data Sales Force</div>
+<div class="card mb-6"><div class="card-header"><div class="card-title">Database Sales Force</div><div class="card-subtitle">{{ db_sf_list|length }} SF terdaftar di WOK {{ wok }}</div></div><div class="table-wrap"><table class="db-table"><thead><tr><th>#</th><th>Nama Sales Force</th><th>Kode SF</th><th>Team Leader</th><th>Kode TL</th><th>Status SF</th><th>Status TL</th></tr></thead><tbody>{% for sf in db_sf_list %}<tr><td>{{ loop.index }}</td><td><strong>{{ sf.nama_sf }}</strong></td><td class="text-mono" style="font-size:11px;">{{ sf.kode_sf or '—' }}</td><td>{{ sf.team_leader or '—' }}</td><td class="text-mono" style="font-size:11px;">{{ sf.kode_tl or '—' }}</td><td>{% if sf.status_sf and sf.status_sf|lower in ['aktif','active'] %}<span class="badge-aktif">AKTIF</span>{% else %}<span class="badge-nonaktif">{{ sf.status_sf or 'NON-AKTIF' }}</span>{% endif %}</td><td>{% if sf.status_tl and sf.status_tl|lower in ['aktif','active'] %}<span class="badge-aktif">AKTIF</span>{% else %}<span class="badge-nonaktif">{{ sf.status_tl or '—' }}</span>{% endif %}</td></tr>{% endfor %}</tbody></table></div></div>
+{% endif %}
+
+{% if is_locked %}
+<div class="card mb-6" style="border-color:rgba(245,158,11,.3);"><div class="card-header"><div class="card-title">Informasi Upload Data</div><div class="card-subtitle">Data terkunci — tidak dapat diubah</div></div><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;"><div><div style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;">Diupload Oleh</div><div style="font-size:14px;font-weight:600;color:var(--text-primary);">{{ uploaded_by }}</div></div><div><div style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;">Waktu Upload</div><div style="font-size:14px;font-weight:600;color:var(--text-primary);">{{ upload_at }}</div></div><div><div style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;">Periode</div><div style="font-size:14px;font-weight:600;color:var(--accent);">{{ bulan_label }} {{ year }} — {{ wok }}</div></div><div><div style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;">Versi Data</div><div style="font-size:14px;font-weight:600;color:var(--text-primary);">v{{ version or '1.0' }}</div></div></div></div>
+{% endif %}
+
+<div id="detailModal" class="modal"><div class="modal-content"><div class="modal-header"><h3 id="modalTitle">Detail</h3><span class="modal-close" id="modalCloseBtn">&times;</span></div><div class="modal-body" id="modalBody"><!-- dinamis --></div></div></div>
+
+<script src="{{ url_for('static', filename='js/chart.umd.min.js') }}"></script>
+<script>
+var CHART_INSTANCES = {};
+const COLORS = { amber: '#f59e0b', amberA: 'rgba(245,158,11,.18)', green: '#10b981', greenA: 'rgba(16,185,129,.18)', blue: '#3b82f6', blueA: 'rgba(59,130,246,.18)', red: '#ef4444', redA: 'rgba(239,68,68,.18)', purple: '#a855f7', purpleA:'rgba(168,85,247,.18)', cyan: '#06b6d4', cyanA: 'rgba(6,182,212,.18)' };
+const PALETTE = ['#f59e0b','#10b981','#3b82f6','#ef4444','#a855f7','#06b6d4','#f97316','#84cc16','#ec4899','#14b8a6','#8b5cf6','#f43f5e','#22d3ee','#fb923c','#4ade80'];
+function hexA(hex,a){const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);return `rgba(${r},${g},${b},${a})`;}
+if(typeof Chart==='undefined') console.error('[KPI] Chart.js belum terload!'); else { Chart.defaults.color='#7a8499'; Chart.defaults.borderColor='#252a38'; Chart.defaults.font.family="'IBM Plex Sans', 'Inter', sans-serif"; }
+
+(function initAllCharts(){
+  if(typeof Chart==='undefined'){ document.querySelectorAll('canvas').forEach(c=>{const p=c.parentElement; p.innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#ef4444;font-size:12px;text-align:center;padding:16px;">⚠ Chart.js tidak terload.<br>Periksa file <code>/static/js/chart.umd.min.js</code></div>';}); return; }
+  (function(){ const ctx=document.getElementById('chartPsHarian').getContext('2d'); const grad=ctx.createLinearGradient(0,0,0,220); grad.addColorStop(0,'rgba(245,158,11,.35)'); grad.addColorStop(1,'rgba(245,158,11,0)'); CHART_INSTANCES.psHarian=new Chart(ctx,{type:'bar',data:{labels:{{ ps_harian_labels|tojson }},datasets:[{label:'PS',data:{{ ps_harian_values|tojson }},backgroundColor:grad,borderColor:COLORS.amber,borderWidth:1.5,borderRadius:3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{title:t=>'Tanggal '+t[0].label}}},scales:{x:{grid:{color:'#1e2535'}},y:{beginAtZero:true,grid:{color:'#1e2535'},ticks:{precision:0}}}}}) })();
+  (function(){ const ctx=document.getElementById('chartDjpHarian').getContext('2d'); CHART_INSTANCES.djpHarian=new Chart(ctx,{type:'line',data:{labels:{{ djp_harian_labels|tojson }},datasets:[{label:'DJP',data:{{ djp_harian_values|tojson }},borderColor:COLORS.blue,backgroundColor:COLORS.blueA,borderWidth:2,pointRadius:3,fill:true,tension:.35},{label:'Briefing',data:{{ brief_harian_values|tojson }},borderColor:COLORS.green,backgroundColor:COLORS.greenA,borderWidth:2,pointRadius:3,fill:true,tension:.35}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{boxWidth:10,font:{size:11}}}},scales:{x:{grid:{color:'#1e2535'}},y:{beginAtZero:true,grid:{color:'#1e2535'},ticks:{precision:0}}}}}) })();
+  (function(){ const ctx=document.getElementById('chartKategori').getContext('2d'); const lbls={{ kat_labels|tojson }}; CHART_INSTANCES.kategori=new Chart(ctx,{type:'doughnut',data:{labels:lbls,datasets:[{data:{{ kat_values|tojson }},backgroundColor:PALETTE.slice(0,lbls.length),borderColor:'#141720',borderWidth:2,hoverOffset:6}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{boxWidth:12,font:{size:11},padding:10}}}}}) })();
+  (function(){ const ctx=document.getElementById('chartTlPs').getContext('2d'); const lbls={{ tl_ps_labels|tojson }}; CHART_INSTANCES.tlPs=new Chart(ctx,{type:'bar',data:{labels:lbls,datasets:[{label:'PS',data:{{ tl_ps_values|tojson }},backgroundColor:lbls.map((_,i)=>hexA(PALETTE[i%PALETTE.length],.65)),borderColor:lbls.map((_,i)=>PALETTE[i%PALETTE.length]),borderWidth:1.5,borderRadius:3}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{beginAtZero:true,grid:{color:'#1e2535'},ticks:{precision:0}},y:{grid:{color:'#1e2535'},ticks:{font:{size:11}}}}}}) })();
+  (function(){ const ctx=document.getElementById('chartTlDjp').getContext('2d'); const lbls={{ tl_djp_labels|tojson }}; CHART_INSTANCES.tlDjp=new Chart(ctx,{type:'bar',data:{labels:lbls,datasets:[{label:'DJP',data:{{ tl_djp_values|tojson }},backgroundColor:lbls.map((_,i)=>hexA(PALETTE[(i+4)%PALETTE.length],.65)),borderColor:lbls.map((_,i)=>PALETTE[(i+4)%PALETTE.length]),borderWidth:1.5,borderRadius:3}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{beginAtZero:true,grid:{color:'#1e2535'},ticks:{precision:0}},y:{grid:{color:'#1e2535'},ticks:{font:{size:11}}}}}}) })();
+  (function(){ const ctx=document.getElementById('chartTopSf').getContext('2d'); const lbls={{ top_sf_labels|tojson }}; CHART_INSTANCES.topSf=new Chart(ctx,{type:'bar',data:{labels:lbls,datasets:[{label:'PS',data:{{ top_sf_values|tojson }},backgroundColor:hexA(COLORS.amber,.55),borderColor:COLORS.amber,borderWidth:1.5,borderRadius:3}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{beginAtZero:true,grid:{color:'#1e2535'},ticks:{precision:0}},y:{grid:{color:'#1e2535'},ticks:{font:{size:10}}}}}}) })();
+  (function(){ const ctx=document.getElementById('chartPaket').getContext('2d'); const lbls={{ paket_labels|tojson }}; CHART_INSTANCES.paket=new Chart(ctx,{type:'doughnut',data:{labels:lbls,datasets:[{data:{{ paket_values|tojson }},backgroundColor:PALETTE.slice(0,lbls.length),borderColor:'#141720',borderWidth:2,hoverOffset:6}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{boxWidth:10,font:{size:10},padding:8}}}}}) })();
+})();
+function toggleExportMenu(){const menu=document.getElementById('exportMenu');if(menu) menu.classList.toggle('open');}
+document.addEventListener('click',e=>{const grp=document.getElementById('exportGroup');const menu=document.getElementById('exportMenu');if(grp&&menu&&!grp.contains(e.target)) menu.classList.remove('open');});
+function showOverlay(title,sub){const overlay=document.getElementById('exportOverlay');if(overlay){document.getElementById('epTitle').textContent=title;document.getElementById('epSub').textContent=sub;overlay.classList.add('show');}}
+function hideOverlay(){const overlay=document.getElementById('exportOverlay');if(overlay) overlay.classList.remove('show');}
+async function captureCharts() {
+  // Jika Chart.js tidak terload, lempar error yang jelas
+  if (typeof Chart === 'undefined') {
+    throw new Error('Chart.js tidak terload. Periksa file /static/js/chart.umd.min.js');
+  }
+  // Tunggu chart selesai render (animasi)
+  await new Promise(r => setTimeout(r, 1200));
+  const imgs = {};
+  // Ambil semua chart instances (dari variabel global CHART_INSTANCES)
+  if (!CHART_INSTANCES || Object.keys(CHART_INSTANCES).length === 0) {
+    console.warn('Tidak ada chart instances, coba inisialisasi ulang');
+    // Jika perlu, panggil initAllCharts() lagi (tapi biasanya sudah otomatis)
+  }
+  for (const [key, chart] of Object.entries(CHART_INSTANCES)) {
+    try {
+      imgs[key] = chart.toBase64Image('image/png', 1.0);
+    } catch(e) {
+      console.warn(`Gagal capture chart ${key}:`, e);
+    }
+  }
+  return imgs;
+}
+
+async function doExport(fmt) {
+  const menu = document.getElementById('exportMenu');
+  if (menu) menu.classList.remove('open');
+  showOverlay(
+    fmt === 'html' ? 'Menyiapkan Export HTML...' : 'Menyiapkan Export PDF...',
+    'Mengambil snapshot grafik...'
+  );
+  try {
+    let chartImages = {};
+    try {
+      chartImages = await captureCharts();
+    } catch (captureErr) {
+      console.warn('Gagal capture chart, lanjutkan export tanpa gambar:', captureErr);
+      document.getElementById('epSub').textContent = 'Melanjutkan tanpa gambar grafik...';
+      // Tetap lanjut dengan chart_images kosong
+    }
+    document.getElementById('epSub').textContent = 'Mengirim ke server...';
+    const payload = {
+      format: fmt,
+      wok: '{{ wok }}',
+      month: {{ month }},
+      year: {{ year }},
+      chart_images: chartImages,
+    };
+    const resp = await fetch('/kpi/export', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!resp.ok) {
+      const text = await resp.text();
+      throw new Error(`Server error ${resp.status}: ${text.substring(0, 100)}`);
+    }
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `KPI_{{ wok }}_{{ bulan_label }}_{{ year }}.${fmt === 'html' ? 'html' : 'pdf'}`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    hideOverlay();
+  } catch (err) {
+    hideOverlay();
+    console.error('Export error:', err);
+    alert('Export gagal: ' + err.message);
+  }
+}
+function exportHTML(){doExport('html');} function exportPDF(){doExport('pdf');} function printDirect(){const menu=document.getElementById('exportMenu');if(menu) menu.classList.remove('open');window.print();}
+function unlockData(){if(!confirm('Yakin ingin menghapus data dan membuka kunci? Aksi ini tidak dapat dibatalkan.')) return; fetch('/kpi/unlock',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({month:{{ month }},year:{{ year }},wok:'{{ wok }}'})}).then(r=>r.json()).then(d=>{if(d.success){alert(d.message);location.reload();}else alert('Gagal: '+d.message);});}
+
+document.addEventListener('DOMContentLoaded',function(){
+  const data={
+    total_ps: {{ total_ps|default(0) }}, total_arpu: {{ total_arpu|default(0) }}, avg_arpu: {{ avg_arpu|default(0) }},
+    ps_harian_table: {{ ps_harian_table|default([])|tojson|safe }}, total_djp: {{ total_djp|default(0) }}, total_briefing: {{ total_briefing|default(0) }},
+    djp_harian_table: {{ djp_harian_table|default([])|tojson|safe }}, total_tl: {{ total_tl|default(0) }}, sf_total: {{ sf_total|default(0) }},
+    sf_aktif: {{ sf_aktif|default(0) }}, sf_nonaktif: {{ sf_nonaktif|default(0) }}, absensi_mb_count: {{ absensi_mb_count|default(0) }},
+    kpi_tl_count: {{ kpi_tl_count|default(0) }}, orbit_count: {{ orbit_count|default(0) }}, upsell_count: {{ upsell_count|default(0) }},
+    sf_aktif_list: {{ sf_aktif_list|default([])|tojson|safe }}, sf_nonaktif_list: {{ sf_nonaktif_list|default([])|tojson|safe }},
+    tl_details: {{ tl_details|default([])|tojson|safe }}, top_10_arpu: {{ top_10_arpu|default([])|tojson|safe }}
+  };
+  const modal=document.getElementById('detailModal'), modalTitle=document.getElementById('modalTitle'), modalBody=document.getElementById('modalBody'), closeBtn=document.getElementById('modalCloseBtn');
+  function showModal(title,html){if(!modal||!modalTitle||!modalBody) return; modalTitle.innerText=title; modalBody.innerHTML=html; modal.style.display='block';}
+  if(closeBtn) closeBtn.onclick=()=>{if(modal) modal.style.display='none';};
+  window.onclick=(event)=>{if(event.target==modal) modal.style.display='none';};
+  function formatRupiah(angka){return 'Rp '+angka.toLocaleString('id-ID');}
+  function escapeHtml(text){if(!text)return ''; return text.replace(/[&<>]/g,function(m){if(m==='&')return '&amp;'; if(m==='<')return '&lt;'; if(m==='>')return '&gt;'; return m;});}
+  const cardHandlers={
+    ps:()=>{let html=`<p><strong>Total PS:</strong> ${data.total_ps.toLocaleString()}</p><p><strong>Total ARPU:</strong> ${formatRupiah(data.total_arpu)}</p><p><strong>Rata-rata ARPU:</strong> ${formatRupiah(data.avg_arpu)}</p>`; if(data.ps_harian_table&&data.ps_harian_table.length){html+=`<p><strong>PS Harian (5 teratas):</strong></p><table class="detail-table"><thead><tr><th>Tanggal</th><th>Jumlah PS</th></tr></thead><tbody>`; data.ps_harian_table.slice(0,5).forEach(row=>{html+=`<tr><td>${row.tanggal}</td><td>${row.ps}</td></tr>`;}); html+=`</tbody></table>`;} showModal('Detail PS',html);},
+    djp:()=>{let html=`<p><strong>Total DJP:</strong> ${data.total_djp.toLocaleString()}</p><p><strong>Total Briefing:</strong> ${data.total_briefing.toLocaleString()}</p>`; if(data.djp_harian_table&&data.djp_harian_table.length){html+=`<p><strong>Aktivitas Harian (5 teratas):</strong></p><table class="detail-table"><thead><tr><th>Tanggal</th><th>DJP</th><th>Briefing</th></tr></thead><tbody>`; data.djp_harian_table.slice(0,5).forEach(row=>{html+=`<tr><td>${row.tanggal}</td><td>${row.djp}</td><td>${row.briefing}</td></tr>`;}); html+=`</tbody></table>`;} showModal('Detail DJP & Briefing',html);},
+    tl_aktif: () => {
+        let html = `<p><strong>Jumlah Team Leader Aktif (berdasarkan PS):</strong> ${data.total_tl_ps}</p>`;
+        if (data.tl_details && data.tl_details.length) {
+            html += `<ol style="margin-top: 8px; padding-left: 20px;">`;
+            data.tl_details.forEach(tl => {
+                html += `<li><strong>${escapeHtml(tl.nama)}</strong> - PS: ${tl.ps.toLocaleString()}, DJP: ${tl.djp.toLocaleString()}, SF: ${tl.sf.toLocaleString()}</li>`;
+            });
+            html += `</ol>`;
+        }
+        showModal('Detail Team Leader Aktif', html);
+    },
+    briefing: () => {
+    showModal('Detail Briefing (Absensi MB)', `<p>Jumlah Briefing: ${data.total_briefing.toLocaleString()}</p><p>Data berasal dari sheet "Absensi MB" kolom AL.</p>`);
+},
+    sf_aktif:()=>{let count=data.sf_aktif_list.length; let html=`<p><strong>Jumlah SF Aktif:</strong> ${count} / Total: ${data.sf_total}</p>`; if(count>0){html+=`<table class="detail-table"><thead><tr><th>#</th><th>Nama SF</th><th>Kode SF</th><th>Status</th><th>Team Leader</th><th>Kode TL</th></tr></thead><tbody>`; data.sf_aktif_list.forEach((sf,idx)=>{html+=`<tr><td>${idx+1}</td><td><strong>${escapeHtml(sf.nama_sf)}</strong></td><td class="text-mono">${escapeHtml(sf.kode_sf)}</td><td><span class="badge-aktif">${escapeHtml(sf.status_sf)}</span></td><td>${escapeHtml(sf.nama_tl)}</td><td class="text-mono">${escapeHtml(sf.kode_tl)}</td></tr>`;}); html+=`</tbody></table>`;} showModal('Detail SF Aktif',html);},
+    sf_nonaktif:()=>{let count=data.sf_nonaktif_list.length; let html=`<p><strong>Jumlah SF Non-Aktif:</strong> ${count} / Total: ${data.sf_total}</p>`; if(count>0){html+=`<table class="detail-table"><thead><tr><th>#</th><th>Nama SF</th><th>Kode SF</th><th>Status</th><th>Team Leader</th><th>Kode TL</th></tr></thead><tbody>`; data.sf_nonaktif_list.forEach((sf,idx)=>{html+=`<tr><td>${idx+1}</td><td><strong>${escapeHtml(sf.nama_sf)}</strong></td><td class="text-mono">${escapeHtml(sf.kode_sf)}</td><td><span class="badge-nonaktif">${escapeHtml(sf.status_sf)}</span></td><td>${escapeHtml(sf.nama_tl)}</td><td class="text-mono">${escapeHtml(sf.kode_tl)}</td></tr>`;}); html+=`</tbody></table>`;} showModal('Detail SF Non-Aktif',html);},
+    avg_arpu:()=>{let html=`<p><strong>Total ARPU:</strong> ${formatRupiah(data.total_arpu)}</p><p><strong>Rata-rata ARPU (per PS):</strong> ${formatRupiah(data.avg_arpu)}</p><p><strong>Total PS:</strong> ${data.total_ps.toLocaleString()}</p>`; if(data.top_10_arpu&&data.top_10_arpu.length){html+=`<p><strong>Top 10 SF dengan ARPU Tertinggi:</strong></p><table class="detail-table"><thead><tr><th>#</th><th>Nama SF</th><th>ARPU</th></tr></thead><tbody>`; data.top_10_arpu.forEach((sf,idx)=>{html+=`<tr><td>${idx+1}</td><td><strong>${escapeHtml(sf.nama_sf)}</strong></td><td>${formatRupiah(sf.arpu)}</td></tr>`;}); html+=`</tbody></table>`;} showModal('Detail ARPU',html);},
+    tl:()=>{let html=`<p><strong>Jumlah Leader:</strong> ${data.total_tl}</p>`; if(data.tl_details&&data.tl_details.length){html+=`<ol style="margin-top:8px;padding-left:20px;">`; data.tl_details.forEach(tl=>{html+=`<li><strong>${escapeHtml(tl.nama)}</strong> - PS: ${tl.ps.toLocaleString()}, DJP: ${tl.djp.toLocaleString()}, SF: ${tl.sf.toLocaleString()}</li>`;}); html+=`</ol>`;} showModal('Detail Team Leader',html);},
+    briefing_mb:()=>{showModal('Briefing (Absensi MB)',`<p>Jumlah data Absensi MB: ${data.absensi_mb_count.toLocaleString()}</p><p>Data berasal dari sheet "Absensi MB".</p>`);},
+    shift_tl:()=>{showModal('Shift TL (KPI TL)',`<p>Jumlah baris pada sheet "KPI TL": ${data.kpi_tl_count.toLocaleString()}</p><p>Setiap baris mewakili data shift TL.</p>`);},
+    orbit:()=>{showModal('Orbit',`<p>Jumlah data Orbit: ${data.orbit_count.toLocaleString()}</p><p>Data berasal dari sheet "Orbit".</p>`);},
+    upsell:()=>{showModal('Upsell',`<p>Jumlah data Upsell: ${data.upsell_count.toLocaleString()}</p><p>Data berasal dari sheet "Upsell".</p>`);}
+  };
+  document.querySelectorAll('.stat-card[data-metric]').forEach(card=>{const metric=card.dataset.metric; if(cardHandlers[metric]){card.addEventListener('click',cardHandlers[metric]); card.style.cursor='pointer';}});
+});
+</script>
+{% endblock %}  

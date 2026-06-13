@@ -1,0 +1,408 @@
+{% extends "base.html" %}
+{% block title %}Daftar Kasbon{% endblock %}
+{% block page_title %}Kasbon{% endblock %}
+{% block breadcrumb %}Transaksi / Kasbon{% endblock %}
+
+{% block extra_style %}
+<style>
+  /* ── Quota bar (user view) ── */
+  .quota-banner {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px 22px;
+    margin-bottom: 20px;
+    display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
+  }
+  .quota-banner.full {
+    border-color: rgba(239,68,68,.35);
+    background: var(--red-dim);
+  }
+  .quota-banner.warn {
+    border-color: rgba(245,158,11,.35);
+    background: var(--accent-dim);
+  }
+  .quota-banner.ok {
+    border-color: rgba(16,185,129,.25);
+  }
+  .quota-icon { font-size: 26px; flex-shrink: 0; }
+  .quota-body { flex: 1; min-width: 200px; }
+  .quota-title {
+    font-size: 13px; font-weight: 700; color: var(--text-primary); margin-bottom: 3px;
+  }
+  .quota-sub {
+    font-size: 11px; color: var(--text-secondary);
+    font-family: 'IBM Plex Mono', monospace; margin-bottom: 10px;
+  }
+  .quota-track {
+    height: 7px; border-radius: 4px;
+    background: var(--border); position: relative; overflow: hidden;
+  }
+  .quota-fill {
+    height: 100%; border-radius: 4px;
+    background: var(--green);
+    transition: width .4s ease;
+  }
+  .quota-fill.warn  { background: var(--orange); }
+  .quota-fill.full  { background: var(--red); }
+  .quota-labels {
+    display: flex; justify-content: space-between; margin-top: 5px;
+  }
+  .quota-labels span {
+    font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--text-muted);
+  }
+  .quota-reset {
+    flex-shrink: 0; text-align: right;
+  }
+  .quota-reset .days {
+    font-family: 'IBM Plex Mono', monospace; font-size: 22px; font-weight: 700;
+    color: var(--text-primary); line-height: 1;
+  }
+  .quota-reset .days-label {
+    font-size: 10px; color: var(--text-muted); margin-top: 2px;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+  .quota-reset .reset-date {
+    font-size: 11px; color: var(--text-secondary);
+    font-family: 'IBM Plex Mono', monospace; margin-top: 4px;
+  }
+
+  /* ── Summary cards ── */
+  .kasbon-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px; margin-bottom: 20px;
+  }
+  .ksm-card {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 9px; padding: 16px 18px;
+    position: relative; overflow: hidden;
+  }
+  .ksm-card::before { content:''; position:absolute; top:0; left:0; right:0; height:2px; }
+  .ksm-card.total::before    { background: var(--accent); }
+  .ksm-card.pending::before  { background: var(--orange); }
+  .ksm-card.approved::before { background: var(--green); }
+  .ksm-card.rejected::before { background: var(--red); }
+  .ksm-label { font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:1.5px; text-transform:uppercase; color:var(--text-muted); margin-bottom:6px; }
+  .ksm-value { font-family:'IBM Plex Mono',monospace; font-size:20px; font-weight:700; }
+  .ksm-card.total .ksm-value    { color: var(--accent); }
+  .ksm-card.pending .ksm-value  { color: var(--orange); }
+  .ksm-card.approved .ksm-value { color: var(--green); }
+  .ksm-card.rejected .ksm-value { color: var(--red); }
+  .ksm-sub { font-size:11px; color:var(--text-muted); margin-top:4px; }
+
+  /* ── Per-user breakdown ── */
+  .user-breakdown {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+    gap: 10px; margin-bottom: 20px;
+  }
+  .ubd-card {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 8px; padding: 12px 14px;
+    display: flex; align-items: center; gap: 11px;
+  }
+  .ubd-avatar {
+    width: 34px; height: 34px; border-radius: 50%;
+    background: var(--accent-dim); border: 1.5px solid var(--accent);
+    display: flex; align-items: center; justify-content: center;
+    font-family:'IBM Plex Mono',monospace; font-size:13px; font-weight:700;
+    color: var(--accent); flex-shrink:0;
+  }
+  .ubd-name  { font-size:12px; font-weight:600; color:var(--text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .ubd-total { font-family:'IBM Plex Mono',monospace; font-size:13px; font-weight:700; color:var(--accent); margin-top:2px; }
+  .ubd-count { font-size:10px; color:var(--text-muted); margin-top:1px; }
+
+  /* ── Filter card ── */
+  .filter-card {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 9px; padding: 14px 18px; margin-bottom: 16px;
+    display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap;
+  }
+  .filter-card .fg { display:flex; flex-direction:column; gap:4px; }
+  .filter-card .fg label {
+    font-family:'IBM Plex Mono',monospace; font-size:9px;
+    letter-spacing:1.2px; text-transform:uppercase; color:var(--text-muted);
+  }
+  .filter-card input, .filter-card select { padding:7px 10px; font-size:12px; width:auto; min-width:0; }
+
+  /* ── Table ── */
+  .table-card { background:var(--bg-card); border:1px solid var(--border); border-radius:9px; overflow:hidden; }
+  .table-card-header {
+    padding: 14px 18px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between; flex-wrap:wrap; gap:10px;
+  }
+  .table-card-title { font-size:13px; font-weight:700; color:var(--text-primary); }
+  .table-card-sub   { font-size:11px; color:var(--text-muted); font-family:'IBM Plex Mono',monospace; margin-top:2px; }
+
+  .kasbon-table { width:100%; border-collapse:collapse; font-size:13px; }
+  .kasbon-table thead tr { border-bottom:1px solid var(--border); }
+  .kasbon-table thead th { padding:9px 13px; font-family:'IBM Plex Mono',monospace; font-size:9px; font-weight:600; color:var(--text-muted); letter-spacing:1.2px; text-transform:uppercase; text-align:left; }
+  .kasbon-table tbody tr { border-bottom:1px solid var(--border-light); transition:background .12s; }
+  .kasbon-table tbody tr:hover { background:var(--bg-hover); }
+  .kasbon-table tbody td { padding:10px 13px; vertical-align:middle; }
+  .kasbon-table .nom  { font-family:'IBM Plex Mono',monospace; font-size:13px; font-weight:700; color:var(--accent); }
+  .kasbon-table .nik-c  { font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--text-secondary); }
+  .kasbon-table .date-c { font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--text-muted); }
+  .kasbon-table .name-c { font-size:13px; font-weight:600; color:var(--text-primary); }
+  .kasbon-table .kep-c  { font-size:12px; color:var(--text-secondary); max-width:180px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+  /* Action buttons */
+  .act-row { display:flex; align-items:center; gap:5px; flex-wrap:wrap; }
+  .act-btn { padding:4px 10px; border-radius:5px; font-size:11px; font-weight:600; cursor:pointer; border:none; text-decoration:none; font-family:'IBM Plex Sans',sans-serif; transition:all .12s; display:inline-flex; align-items:center; gap:4px; }
+  .act-approve { background:var(--green-dim); color:var(--green); border:1px solid rgba(16,185,129,.3); }
+  .act-approve:hover { background:rgba(16,185,129,.22); }
+  .act-reject  { background:var(--red-dim);   color:var(--red);   border:1px solid rgba(239,68,68,.3); }
+  .act-reject:hover  { background:rgba(239,68,68,.22); }
+  .act-edit    { background:var(--bg-hover);  color:var(--text-secondary); border:1px solid var(--border); }
+  .act-edit:hover    { color:var(--text-primary); }
+  .act-del     { background:var(--red-dim);   color:var(--red);   border:1px solid rgba(239,68,68,.2); }
+  .act-del:hover     { background:rgba(239,68,68,.2); }
+  .approve-form { display:inline; }
+
+  .sec-title {
+    font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:2px;
+    text-transform:uppercase; color:var(--text-muted);
+    display:flex; align-items:center; gap:8px; margin-bottom:12px;
+  }
+  .sec-title::after { content:''; flex:1; height:1px; background:var(--border); }
+
+  .empty-state { padding:48px 24px; text-align:center; color:var(--text-muted); font-size:13px; }
+  .empty-state .ei { font-size:36px; opacity:.25; margin-bottom:12px; }
+
+  @media (max-width: 768px) {
+    .kasbon-summary { grid-template-columns: 1fr 1fr; }
+    .user-breakdown { grid-template-columns: 1fr; }
+    .filter-card { flex-direction:column; align-items:stretch; }
+    .filter-card input, .filter-card select { width:100%; }
+    .quota-reset { display:none; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+
+{# ── Page header ── #}
+<div class="flex items-center justify-between mb-4" style="flex-wrap:wrap;gap:10px;">
+  <div>
+    <div class="page-title">💳 Daftar Kasbon</div>
+    <div class="page-desc">
+      {% if session.role in ['VP','GML','MANAGER_WOK'] %}Semua pengajuan kasbon karyawan
+      {% else %}Pengajuan kasbon Anda{% endif %}
+    </div>
+  </div>
+  {% if session.role not in ['VP','GML','MANAGER_WOK'] %}
+    {% if limit_info.can_apply %}
+    <a href="{{ url_for('kasbon_tambah') }}" class="btn btn-primary">+ Ajukan Kasbon</a>
+    {% else %}
+    <button class="btn btn-ghost" disabled title="Kuota 30 hari penuh">🔒 Kuota Penuh</button>
+    {% endif %}
+  {% endif %}
+</div>
+
+{# ── Quota Banner (hanya untuk non-manager) ── #}
+{% if session.role not in ['VP','GML','MANAGER_WOK'] %}
+{% set pct = limit_info.pct_used %}
+{% set banner_class = 'full' if not limit_info.can_apply else ('warn' if pct >= 60 else 'ok') %}
+{% set fill_class   = 'full' if pct >= 100 else ('warn' if pct >= 60 else '') %}
+<div class="quota-banner {{ banner_class }}">
+  <div class="quota-icon">
+    {% if not limit_info.can_apply %}🔒{% elif pct >= 60 %}⚠️{% else %}💳{% endif %}
+  </div>
+  <div class="quota-body">
+    <div class="quota-title">
+      {% if not limit_info.can_apply %}
+        Kuota kasbon 30 hari Anda sudah penuh
+      {% else %}
+        Kuota Kasbon 30 Hari — Sisa Rp {{ '{:,.0f}'.format(limit_info.remaining) }}
+      {% endif %}
+    </div>
+    <div class="quota-sub">
+      Terpakai Rp {{ '{:,.0f}'.format(limit_info.used_30d) }} dari Rp 500.000 ({{ pct }}%)
+      {% if limit_info.reset_date %}
+       · Reset {{ limit_info.reset_date.strftime('%d %b %Y') }}
+      {% endif %}
+    </div>
+    <div class="quota-track">
+      <div class="quota-fill {{ fill_class }}" style="width:{{ pct }}%;"></div>
+    </div>
+    <div class="quota-labels">
+      <span>Rp 0</span>
+      <span>Rp 500.000</span>
+    </div>
+  </div>
+  {% if limit_info.days_until_reset is not none %}
+  <div class="quota-reset">
+    {% if not limit_info.can_apply %}
+    <div class="days {{ 'red' if limit_info.days_until_reset == 0 else '' }}" style="color:var(--red);">
+      {{ limit_info.days_until_reset }}
+    </div>
+    <div class="days-label">hari lagi reset</div>
+    <div class="reset-date">{{ limit_info.reset_date.strftime('%d %b %Y') }}</div>
+    {% else %}
+    <div class="days">{{ limit_info.days_until_reset }}</div>
+    <div class="days-label">hari tersisa</div>
+    <div class="reset-date">hingga {{ limit_info.reset_date.strftime('%d %b %Y') }}</div>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+{# ── Summary Cards ── #}
+<div class="kasbon-summary">
+  <div class="ksm-card total">
+    <div class="ksm-label">Total Nominal</div>
+    <div class="ksm-value" style="font-size:16px;">Rp {{ '{:,.0f}'.format(summary.total_nominal) }}</div>
+    <div class="ksm-sub">{{ summary.total_count }} pengajuan</div>
+  </div>
+  <div class="ksm-card pending">
+    <div class="ksm-label">Menunggu</div>
+    <div class="ksm-value">{{ summary.pending_count }}</div>
+    <div class="ksm-sub">Rp {{ '{:,.0f}'.format(summary.pending_nominal) }}</div>
+  </div>
+  <div class="ksm-card approved">
+    <div class="ksm-label">Disetujui</div>
+    <div class="ksm-value">{{ summary.approved_count }}</div>
+    <div class="ksm-sub">Rp {{ '{:,.0f}'.format(summary.approved_nominal) }}</div>
+  </div>
+  <div class="ksm-card rejected">
+    <div class="ksm-label">Ditolak</div>
+    <div class="ksm-value">{{ summary.rejected_count }}</div>
+    <div class="ksm-sub">Rp {{ '{:,.0f}'.format(summary.rejected_nominal) }}</div>
+  </div>
+</div>
+
+{# ── Per-user breakdown (manager only) ── #}
+{% if session.role in ['VP','GML','MANAGER_WOK'] and user_summary %}
+<div class="sec-title">Ringkasan per Karyawan</div>
+<div class="user-breakdown mb-4">
+  {% for u in user_summary %}
+  <div class="ubd-card">
+    <div class="ubd-avatar">{{ u.nama[0]|upper }}</div>
+    <div style="min-width:0;">
+      <div class="ubd-name">{{ u.nama }}</div>
+      <div class="ubd-total">Rp {{ '{:,.0f}'.format(u.total_nominal) }}</div>
+      <div class="ubd-count">{{ u.count }} pengajuan · {{ u.pending }} pending</div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{# ── Filter ── #}
+<form method="GET" action="{{ url_for('kasbon_list') }}" class="filter-card">
+  <div class="fg">
+    <label>Dari Tanggal</label>
+    <input type="date" name="date_from" value="{{ date_from or '' }}">
+  </div>
+  <div class="fg">
+    <label>Sampai</label>
+    <input type="date" name="date_to" value="{{ date_to or '' }}">
+  </div>
+  <div class="fg">
+    <label>Status</label>
+    <select name="status" style="width:130px;">
+      <option value="">Semua</option>
+      <option value="pending"  {{ 'selected' if status=='pending' }}>Pending</option>
+      <option value="approved" {{ 'selected' if status=='approved' }}>Approved</option>
+      <option value="rejected" {{ 'selected' if status=='rejected' }}>Rejected</option>
+    </select>
+  </div>
+  {% if session.role in ['VP','GML','MANAGER_WOK'] %}
+  <div class="fg">
+    <label>Cari Nama</label>
+    <input type="text" name="search" value="{{ search or '' }}" placeholder="Nama karyawan…" style="width:180px;">
+  </div>
+  {% endif %}
+  <div style="display:flex;gap:6px;padding-bottom:1px;">
+    <button type="submit" class="btn btn-primary btn-sm">🔍 Cari</button>
+    <a href="{{ url_for('kasbon_list') }}" class="btn btn-ghost btn-sm">↺ Reset</a>
+  </div>
+</form>
+
+{# ── Table ── #}
+<div class="table-card">
+  <div class="table-card-header">
+    <div>
+      <div class="table-card-title">Riwayat Pengajuan</div>
+      <div class="table-card-sub">
+        Menampilkan {{ items|length }} data{% if status %} · Status: {{ status|upper }}{% endif %}
+      </div>
+    </div>
+  </div>
+  <div style="overflow-x:auto;">
+    {% if items %}
+    <table class="kasbon-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          {% if session.role in ['VP','GML','MANAGER_WOK'] %}<th>Karyawan</th>{% endif %}
+          <th>Nominal</th>
+          <th>Keterangan</th>
+          <th>Tanggal</th>
+          <th>Status</th>
+          <th>Diproses Oleh</th>
+          <th>Aksi</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for k in items %}
+        <tr>
+          <td class="nik-c">{{ loop.index }}</td>
+          {% if session.role in ['VP','GML','MANAGER_WOK'] %}
+          <td>
+            <div class="name-c">{{ k.nama }}</div>
+            <div class="nik-c" style="margin-top:2px;">{{ k.nik or '—' }}</div>
+          </td>
+          {% endif %}
+          <td class="nom">Rp {{ '{:,.0f}'.format(k.nominal or 0) }}</td>
+          <td><span class="kep-c">{{ k.keterangan or '—' }}</span></td>
+          <td class="date-c">{{ k.created_at.strftime('%d %b %Y') if k.created_at else '—' }}</td>
+          <td>
+            {% if k.status == 'pending' %}<span class="badge badge-pending">⏳ PENDING</span>
+            {% elif k.status == 'approved' %}<span class="badge badge-approved">✓ APPROVED</span>
+            {% else %}<span class="badge badge-rejected">✗ REJECTED</span>{% endif %}
+          </td>
+          <td class="date-c">
+            {% if k.approved_by %}
+              <div>{{ k.approved_by }}</div>
+              <div style="color:var(--text-muted);font-size:10px;">{{ k.approved_at.strftime('%d %b %Y') if k.approved_at else '' }}</div>
+            {% else %}—{% endif %}
+          </td>
+          <td>
+            <div class="act-row">
+              {% if session.role in ['VP','GML','MANAGER_WOK'] and k.status == 'pending' %}
+              <form class="approve-form" method="POST" action="{{ url_for('kasbon_approve', kasbon_id=k._id|string) }}">
+                <input type="hidden" name="action" value="approve">
+                <button type="submit" class="act-btn act-approve">✓ Setuju</button>
+              </form>
+              <form class="approve-form" method="POST" action="{{ url_for('kasbon_approve', kasbon_id=k._id|string) }}">
+                <input type="hidden" name="action" value="reject">
+                <button type="submit" class="act-btn act-reject">✗ Tolak</button>
+              </form>
+              {% endif %}
+              {% if k.status == 'pending' and (k.user_id|string == session.user_id|string or session.role in ['VP','GML','MANAGER_WOK']) %}
+              <a href="{{ url_for('kasbon_edit', id=k._id|string) }}" class="act-btn act-edit">✏ Edit</a>
+              {% endif %}
+              {% if session.role in ['VP','GML','MANAGER_WOK'] %}
+              <a href="{{ url_for('kasbon_hapus', id=k._id|string) }}" class="act-btn act-del"
+                 onclick="return confirm('Hapus pengajuan ini?')">🗑</a>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+      <div class="ei">📭</div>
+      <div>Belum ada data kasbon{% if status %} dengan status <strong>{{ status }}</strong>{% endif %}.</div>
+      {% if session.role not in ['VP','GML','MANAGER_WOK'] and limit_info.can_apply %}
+      <a href="{{ url_for('kasbon_tambah') }}" class="btn btn-primary btn-sm" style="margin-top:14px;">+ Ajukan Kasbon Baru</a>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

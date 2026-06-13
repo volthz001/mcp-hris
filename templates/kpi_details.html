@@ -1,0 +1,666 @@
+{% extends "base.html" %}
+{% block title %}Detail KPI — {{ doc.label }}{% endblock %}
+{% block page_title %}KPI Monitoring — {{ doc.label }}{% endblock %}
+{% block breadcrumb %}Analitik › KPI Monitoring{% endblock %}
+
+{% block extra_style %}
+<style>
+  .tab-nav { display:flex; gap:0; border-bottom:1px solid var(--border); margin-bottom:20px; overflow-x:auto; }
+  .tab-btn {
+    padding:10px 18px; font-size:12px; font-weight:600;
+    color:var(--text-muted); border:none; background:transparent;
+    cursor:pointer; border-bottom:2px solid transparent;
+    font-family:var(--font-mono); letter-spacing:.5px;
+    white-space:nowrap; transition:all .15s;
+  }
+  .tab-btn:hover { color:var(--text-primary); }
+  .tab-btn.active { color:var(--accent); border-bottom-color:var(--accent); }
+  .tab-panel { display:none; }
+  .tab-panel.active { display:block; }
+  .chart-wrap { background:var(--bg-card);border:1px solid var(--border);
+                border-radius:8px;padding:20px;margin-bottom:20px; }
+  .chart-title { font-size:12px;font-weight:600;color:var(--text-primary);
+                 margin-bottom:14px;font-family:var(--font-mono); }
+  .kpi-ach-bar { height:6px;border-radius:3px;background:var(--border);
+                 margin-top:4px;overflow:hidden; }
+  .kpi-ach-fill { height:100%;border-radius:3px;background:var(--green); }
+  .badge-aktif   { background:var(--green-dim);color:var(--green);
+                   border:1px solid rgba(16,185,129,.25); }
+  .badge-deleted { background:var(--red-dim);color:var(--red);
+                   border:1px solid rgba(239,68,68,.25); }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Header -->
+<div class="flex justify-between items-center mb-6">
+  <div>
+    <div class="page-title">{{ doc.label }}</div>
+    <div class="page-desc">
+      WOK: <strong>{{ doc.wok }}</strong> &nbsp;·&nbsp;
+      Grade: <strong style="color:var(--accent);">{{ doc.grade or '—' }}</strong>
+      &nbsp;·&nbsp; Diupload: {{ doc.created_at.strftime('%d %b %Y %H:%M') if doc.created_at else '—' }}
+    </div>
+  </div>
+  <div class="flex gap-2">
+    <a href="{{ url_for('kpi_bp.kpi_download_xls', laporan_id=doc._id) }}"
+       class="btn btn-green btn-sm">⬇ Excel</a>
+    <a href="{{ url_for('kpi_bp.kpi_download_pdf', laporan_id=doc._id) }}"
+       class="btn btn-ghost btn-sm" style="color:var(--red);">⬇ PDF</a>
+    <a href="{{ url_for('kpi_bp.kpi_monitoring') }}"
+       class="btn btn-ghost btn-sm">← Kembali</a>
+  </div>
+</div>
+
+<!-- KPI Summary Cards -->
+{% set dash = data.dashboard %}
+{% if dash and dash.rows %}
+<div class="stat-grid" style="margin-bottom:24px;">
+  <div class="stat-card accent">
+    <div class="stat-label">Total KPI</div>
+    <div class="stat-value">{{ "%.1f"|format((dash.total_kpi or 0)*100) }}%</div>
+    <div class="stat-sub">Akumulasi semua indikator</div>
+  </div>
+  <div class="stat-card blue">
+    <div class="stat-label">Indikator</div>
+    <div class="stat-value">{{ dash.rows|length }}</div>
+    <div class="stat-sub">Total indikator KPI</div>
+  </div>
+  <div class="stat-card green">
+    <div class="stat-label">KPI TL</div>
+    <div class="stat-value">{{ data.kpi_tl|length }}</div>
+    <div class="stat-sub">Team Leader aktif</div>
+  </div>
+  <div class="stat-card accent">
+    <div class="stat-label">Total PS</div>
+    <div class="stat-value">{{ data.monitoring_ps|sum(attribute='total_ps') if data.monitoring_ps else 0 }}</div>
+    <div class="stat-sub">Product sales bulan ini</div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Tab Navigation -->
+<div class="tab-nav">
+  <button class="tab-btn active" onclick="switchTab('dashboard')">◈ Dashboard KPI</button>
+  <button class="tab-btn" onclick="switchTab('kpi_tl')">◉ KPI per TL</button>
+  <button class="tab-btn" onclick="switchTab('monitoring_ps')">▦ Monitoring PS</button>
+  <button class="tab-btn" onclick="switchTab('monitoring_djp')">▲ Monitoring DJP</button>
+  <button class="tab-btn" onclick="switchTab('decay')">↘ Decay Rate</button>
+  <button class="tab-btn" onclick="switchTab('rekap_fee')">◫ Rekap Fee DJP</button>
+  <button class="tab-btn" onclick="switchTab('absensi_mb')">◎ Absensi MB</button>
+  <button class="tab-btn" onclick="switchTab('upsell_orbit')">⬡ Upsell & Orbit</button>
+</div>
+
+<!-- ── TAB 1: Dashboard KPI ─────────────────────────────────────────────── -->
+<div id="tab-dashboard" class="tab-panel active">
+  <!-- Chart Bar Nilai KPI -->
+  <div class="chart-wrap">
+    <div class="chart-title">Nilai KPI per Indikator (%)</div>
+    <canvas id="chartDashKPI" height="90"></canvas>
+  </div>
+
+  <div class="card">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>No</th><th>Indikator</th><th>Bobot</th>
+            <th>N-1</th><th>Target</th><th>Realisasi</th>
+            <th>Kek. Min</th><th>Ach (%)</th><th>Nilai KPI (%)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% if dash and dash.rows %}
+          {% for r in dash.rows %}
+          {% set ach = (r.ach_pct or 0)|float %}
+          <tr>
+            <td class="muted text-mono">{{ r.no }}</td>
+            <td style="font-weight:500;max-width:220px;">{{ r.indikator }}</td>
+            <td class="text-mono">{{ r.bobot }}</td>
+            <td class="text-mono">{{ "{:,.0f}".format(r.n1|float) if r.n1 else '—' }}</td>
+            <td class="text-mono">{{ "{:,.0f}".format(r.target|float) if r.target else '—' }}</td>
+            <td class="text-mono" style="color:var(--accent);">
+              {{ "{:,.0f}".format(r.realisasi|float) if r.realisasi else '—' }}
+            </td>
+            <td class="text-mono muted">
+              {{ "{:,.0f}".format(r.kek_min|float) if r.kek_min else '—' }}
+            </td>
+            <td>
+              <div style="font-size:12px;font-family:var(--font-mono);">
+                {{ "%.1f"|format(ach*100) }}%
+              </div>
+              <div class="kpi-ach-bar">
+                <div class="kpi-ach-fill"
+                     style="width:{{ [ach*100,100]|min }}%;
+                     background:{% if ach>=1 %}var(--green){% elif ach>=0.5 %}var(--accent){% else %}var(--red){% endif %};">
+                </div>
+              </div>
+            </td>
+            <td class="text-mono" style="font-weight:700;color:var(--accent);">
+              {{ "%.2f"|format((r.nilai_kpi or 0)|float*100) }}%
+            </td>
+          </tr>
+          {% endfor %}
+          <tr style="background:var(--bg-hover);">
+            <td colspan="8" style="text-align:right;font-weight:700;padding-right:16px;">
+              TOTAL KPI
+            </td>
+            <td class="text-mono" style="font-weight:700;color:var(--accent);font-size:14px;">
+              {{ "%.2f"|format((dash.total_kpi or 0)|float*100) }}%
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="9" class="text-center muted">Tidak ada data</td></tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ── TAB 2: KPI per TL ────────────────────────────────────────────────── -->
+<div id="tab-kpi_tl" class="tab-panel">
+  <!-- Charts -->
+  <div class="grid-2" style="margin-bottom:20px;">
+    <div class="chart-wrap">
+      <div class="chart-title">Sales Produk Utama per TL</div>
+      <canvas id="chartTLSpu" height="160"></canvas>
+    </div>
+    <div class="chart-wrap">
+      <div class="chart-title">Total KPI (%) per TL</div>
+      <canvas id="chartTLKpi" height="160"></canvas>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>No</th><th>Nama TL</th><th>Kode TL</th>
+            <th>SF</th><th>SPU Target</th><th>SPU Real</th><th>SPU Ach</th>
+            <th>Rev Target</th><th>Rev Real</th>
+            <th>Total KPI</th><th>Bonus</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in data.kpi_tl %}
+          {% set kpi_val = (r.total_kpi or 0)|float %}
+          <tr>
+            <td class="muted text-mono">{{ r.no }}</td>
+            <td style="font-weight:600;">{{ r.nama }}</td>
+            <td class="text-mono muted">{{ r.kode_tl }}</td>
+            <td class="text-mono">{{ r.jumlah_sf }}</td>
+            <td class="text-mono">{{ "{:,.0f}".format(r.spu_target|float) if r.spu_target else '—' }}</td>
+            <td class="text-mono" style="color:var(--accent);">
+              {{ "{:,.0f}".format(r.spu_real|float) if r.spu_real else '—' }}
+            </td>
+            <td>
+              <span class="badge {% if (r.spu_ach or 0)|float >= 1 %}badge-approved{% elif (r.spu_ach or 0)|float >= 0.5 %}badge-pending{% else %}badge-rejected{% endif %}">
+                {{ "%.1f"|format((r.spu_ach or 0)|float*100) }}%
+              </span>
+            </td>
+            <td class="text-mono">{{ "{:,.0f}".format(r.rev_target|float) if r.rev_target else '—' }}</td>
+            <td class="text-mono">{{ "{:,.0f}".format(r.rev_real|float) if r.rev_real else '—' }}</td>
+            <td>
+              <span style="font-weight:700;font-family:var(--font-mono);
+                color:{% if kpi_val>=0.5 %}var(--green){% elif kpi_val>=0.3 %}var(--accent){% else %}var(--red){% endif %};">
+                {{ "%.2f"|format(kpi_val*100) }}%
+              </span>
+            </td>
+            <td class="text-mono">{{ "{:,.0f}".format(r.bonus|float) if r.bonus else '—' }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="11" class="text-center muted">Tidak ada data</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ── TAB 3: Monitoring PS ─────────────────────────────────────────────── -->
+<div id="tab-monitoring_ps" class="tab-panel">
+  <div class="chart-wrap">
+    <div class="chart-title">Top 15 SF — Total PS vs Target</div>
+    <canvas id="chartPS" height="100"></canvas>
+  </div>
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">Data Monitoring PS</div>
+      <div class="card-subtitle">{{ data.monitoring_ps|length }} SF</div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>No</th><th>Nama SF</th><th>Kode SF</th>
+            <th>Nama TL</th><th>WOK</th><th>Status</th>
+            <th>Target</th><th>Total PS</th><th>Ach %</th><th>Status PS</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in data.monitoring_ps %}
+          {% set pct = (r.pct or 0)|float %}
+          <tr>
+            <td class="muted text-mono">{{ r.no }}</td>
+            <td style="font-weight:500;">{{ r.nama_sf }}</td>
+            <td class="text-mono muted">{{ r.kode_sf }}</td>
+            <td class="muted">{{ r.nama_tl }}</td>
+            <td class="text-mono muted">{{ r.wok }}</td>
+            <td><span class="badge badge-{{ 'approved' if r.status == 'ACTIVE' else 'deleted' }}">
+              {{ r.status }}</span></td>
+            <td class="text-mono">{{ r.target_ps or '—' }}</td>
+            <td class="text-mono" style="color:var(--accent);font-weight:600;">
+              {{ r.total_ps or 0 }}
+            </td>
+            <td>
+              <span class="badge {% if pct>=1 %}badge-approved{% elif pct>=0.5 %}badge-pending{% else %}badge-rejected{% endif %}">
+                {{ "%.0f"|format(pct*100) }}%
+              </span>
+            </td>
+            <td class="muted text-sm">{{ r.status_ps or '—' }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="10" class="text-center muted">Tidak ada data</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ── TAB 4: Monitoring DJP ────────────────────────────────────────────── -->
+<div id="tab-monitoring_djp" class="tab-panel">
+  <div class="chart-wrap">
+    <div class="chart-title">Total DJP vs List Tugas per TL</div>
+    <canvas id="chartDJP" height="100"></canvas>
+  </div>
+  <div class="card">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>No</th><th>Nama SF</th><th>Kode SF</th>
+            <th>Nama TL</th><th>Status</th>
+            <th>Jumlah PS</th><th>List Tugas</th><th>Total DJP</th><th>% DJP</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in data.monitoring_djp %}
+          {% set pct = (r.pct_djp or 0)|float %}
+          <tr>
+            <td class="muted text-mono">{{ r.no }}</td>
+            <td style="font-weight:500;">{{ r.nama_sf }}</td>
+            <td class="text-mono muted">{{ r.kode_sf }}</td>
+            <td class="muted">{{ r.nama_tl }}</td>
+            <td><span class="badge badge-{{ 'approved' if r.status_sf == 'ACTIVE' else 'deleted' }}">
+              {{ r.status_sf }}</span></td>
+            <td class="text-mono">{{ r.jumlah_ps or 0 }}</td>
+            <td class="text-mono">{{ r.list_tugas or 0 }}</td>
+            <td class="text-mono" style="color:var(--accent);font-weight:600;">
+              {{ r.total_djp or 0 }}
+            </td>
+            <td>
+              <span class="badge {% if pct>=0.8 %}badge-approved{% elif pct>=0.5 %}badge-pending{% else %}badge-rejected{% endif %}">
+                {{ "%.1f"|format(pct*100) }}%
+              </span>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="9" class="text-center muted">Tidak ada data</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ── TAB 5: Decay Rate ─────────────────────────────────────────────────── -->
+<div id="tab-decay" class="tab-panel">
+  <div class="chart-wrap">
+    <div class="chart-title">Decay Rate — Tren Billing per Bulan</div>
+    <canvas id="chartDecay" height="110"></canvas>
+  </div>
+  <div class="card">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>No</th><th>Bulan</th>
+            <th>PS</th><th>Bill 1</th><th>Bill 2</th>
+            <th>Bill 3</th><th>Bill 4</th><th>Bill 5</th><th>Bill 6</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in data.decay_rate %}
+          {% if r.bulan and r.bulan != 'None' %}
+          <tr>
+            <td class="muted text-mono">{{ r.no }}</td>
+            <td style="font-weight:600;">{{ r.bulan }}</td>
+            <td class="text-mono">{{ "{:,.0f}".format(r.ps|float) if r.ps else '—' }}</td>
+            <td class="text-mono">{{ "{:,.0f}".format(r.bill1|float) if r.bill1 else '—' }}</td>
+            <td class="text-mono">{{ "{:,.0f}".format(r.bill2|float) if r.bill2 else '—' }}</td>
+            <td class="text-mono">{{ "{:,.0f}".format(r.bill3|float) if r.bill3 else '—' }}</td>
+            <td class="text-mono">{{ "{:,.0f}".format(r.bill4|float) if r.bill4 else '—' }}</td>
+            <td class="text-mono">{{ "{:,.0f}".format(r.bill5|float) if r.bill5 else '—' }}</td>
+            <td class="text-mono" style="color:var(--red);">
+              {{ "{:,.0f}".format(r.bill6|float) if r.bill6 else '—' }}
+            </td>
+          </tr>
+          {% endif %}
+          {% else %}
+          <tr><td colspan="9" class="text-center muted">Tidak ada data</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ── TAB 6: Rekap Fee ──────────────────────────────────────────────────── -->
+<div id="tab-rekap_fee" class="tab-panel">
+  <div class="card">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>No</th><th>Nama SF</th><th>Kode SF</th>
+            <th>Nama TL</th><th>Status</th>
+            <th>Jml PS</th><th>MB Online</th><th>MB Offline</th>
+            <th>Assign DigiPOS</th><th>Jml DJP</th><th>Skema Fee</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in data.rekap_fee %}
+          <tr>
+            <td class="muted text-mono">{{ r.no }}</td>
+            <td style="font-weight:500;">{{ r.nama_sf }}</td>
+            <td class="text-mono muted">{{ r.kode_sf }}</td>
+            <td class="muted">{{ r.nama_tl }}</td>
+            <td><span class="badge badge-{{ 'approved' if r.status_sf == 'ACTIVE' else 'deleted' }}">
+              {{ r.status_sf }}</span></td>
+            <td class="text-mono">{{ r.jumlah_ps or 0 }}</td>
+            <td class="text-mono">{{ r.mb_online or 0 }}</td>
+            <td class="text-mono">{{ r.mb_offline or 0 }}</td>
+            <td class="text-mono">{{ r.assign_digi or 0 }}</td>
+            <td class="text-mono" style="color:var(--accent);">{{ r.jumlah_djp or 0 }}</td>
+            <td class="muted">{{ r.skema_fee or '—' }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="11" class="text-center muted">Tidak ada data</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ── TAB 7: Absensi MB ─────────────────────────────────────────────────── -->
+<div id="tab-absensi_mb" class="tab-panel">
+  <div class="card">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>No</th><th>Nama SF</th><th>Kode SF</th>
+            <th>Status SF</th><th>Jumlah PS</th><th>Total Hadir MB</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in data.absensi_mb %}
+          <tr>
+            <td class="muted text-mono">{{ r.no }}</td>
+            <td style="font-weight:500;">{{ r.nama }}</td>
+            <td class="text-mono muted">{{ r.kode_sf }}</td>
+            <td><span class="badge badge-{{ 'approved' if r.status == 'ACTIVE' else 'deleted' }}">
+              {{ r.status }}</span></td>
+            <td class="text-mono">{{ r.jumlah_ps or 0 }}</td>
+            <td class="text-mono" style="color:var(--green);font-weight:600;">
+              {{ r.total_hadir or 0 }}
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="6" class="text-center muted">Tidak ada data</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ── TAB 8: Upsell & Orbit ─────────────────────────────────────────────── -->
+<div id="tab-upsell_orbit" class="tab-panel">
+  <div class="grid-2">
+    <div class="card" style="margin-bottom:0;">
+      <div class="card-header">
+        <div>
+          <div class="card-title">Upsell</div>
+          <div class="card-subtitle">{{ data.upsell|length }} data</div>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>No</th><th>Nama SF</th><th>Nama TL</th><th>Paket</th><th>Tanggal</th></tr>
+          </thead>
+          <tbody>
+            {% for r in data.upsell %}
+            <tr>
+              <td class="muted text-mono">{{ r.no }}</td>
+              <td style="font-weight:500;font-size:12px;">{{ r.nama_sf }}</td>
+              <td class="muted text-sm">{{ r.nama_tl }}</td>
+              <td class="muted text-sm">{{ r.paket }}</td>
+              <td class="muted text-sm">{{ r.tanggal }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5" class="text-center muted">Tidak ada data</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:0;">
+      <div class="card-header">
+        <div>
+          <div class="card-title">Orbit</div>
+          <div class="card-subtitle">{{ data.orbit|length }} aktivasi</div>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>No</th><th>Type</th><th>MSISDN</th><th>Tgl Aktivasi</th><th>TL</th></tr>
+          </thead>
+          <tbody>
+            {% for r in data.orbit %}
+            <tr>
+              <td class="muted text-mono">{{ r.no }}</td>
+              <td class="muted text-sm">{{ r.orbit_type }}</td>
+              <td class="text-mono muted">{{ r.msisdn }}</td>
+              <td class="muted text-sm">{{ r.activate_dt[:10] if r.activate_dt else '—' }}</td>
+              <td class="muted text-sm">{{ r.nama_tl or '—' }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5" class="text-center muted">Tidak ada data</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_script %}
+<script>
+// ── Tab switching ─────────────────────────────────────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  event.target.classList.add('active');
+  renderCharts();
+}
+
+// ── Chart data from server ────────────────────────────────────────────────────
+const C_TL    = {{ chart_tl | tojson }};
+const C_PS    = {{ chart_ps | tojson }};
+const C_DECAY = {{ chart_decay | tojson }};
+const C_DJP   = {{ chart_djp | tojson }};
+const C_DASH  = {
+  labels : {{ data.dashboard.rows | map(attribute='indikator') | list | tojson if data.dashboard and data.dashboard.rows else [] | tojson }},
+  kpi    : {{ data.dashboard.rows | map(attribute='nilai_kpi') | list | tojson if data.dashboard and data.dashboard.rows else [] | tojson }},
+  ach    : {{ data.dashboard.rows | map(attribute='ach_pct') | list | tojson if data.dashboard and data.dashboard.rows else [] | tojson }},
+};
+
+const COLORS = {
+  accent : '#f59e0b', green : '#10b981', red : '#ef4444',
+  blue   : '#3b82f6', muted : '#4a5568',
+  accent_dim: 'rgba(245,158,11,.15)',
+  green_dim : 'rgba(16,185,129,.15)',
+  blue_dim  : 'rgba(59,130,246,.15)',
+  red_dim   : 'rgba(239,68,68,.15)',
+};
+
+Chart.defaults.color = '#7a8499';
+Chart.defaults.borderColor = '#252a38';
+
+let chartInstances = {};
+
+function destroyChart(id) {
+  if (chartInstances[id]) { chartInstances[id].destroy(); delete chartInstances[id]; }
+}
+
+function renderCharts() {
+  // Dashboard KPI
+  destroyChart('chartDashKPI');
+  const el1 = document.getElementById('chartDashKPI');
+  if (el1 && C_DASH.labels.length) {
+    chartInstances['chartDashKPI'] = new Chart(el1.getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels: C_DASH.labels.map(l => l ? l.substring(0,30) : ''),
+        datasets: [{
+          label: 'Nilai KPI (%)',
+          data: (C_DASH.kpi || []).map(v => v ? +(v*100).toFixed(2) : 0),
+          backgroundColor: COLORS.accent_dim,
+          borderColor: COLORS.accent,
+          borderWidth: 1.5, borderRadius: 4,
+        }]
+      },
+      options: { responsive:true, plugins:{legend:{display:false}},
+        scales:{ y:{ beginAtZero:true, ticks:{callback:v=>v+'%'} } } }
+    });
+  }
+
+  // KPI TL - SPU
+  destroyChart('chartTLSpu');
+  const el2 = document.getElementById('chartTLSpu');
+  if (el2 && C_TL.labels.length) {
+    chartInstances['chartTLSpu'] = new Chart(el2.getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels: C_TL.labels,
+        datasets: [
+          { label:'Target', data:C_TL.spu_target, backgroundColor:COLORS.blue_dim,
+            borderColor:COLORS.blue, borderWidth:1.5, borderRadius:4 },
+          { label:'Realisasi', data:C_TL.spu_real, backgroundColor:COLORS.accent_dim,
+            borderColor:COLORS.accent, borderWidth:1.5, borderRadius:4 },
+        ]
+      },
+      options: { responsive:true, plugins:{legend:{position:'bottom'}},
+        scales:{ y:{ beginAtZero:true } } }
+    });
+  }
+
+  // KPI TL - Total KPI %
+  destroyChart('chartTLKpi');
+  const el3 = document.getElementById('chartTLKpi');
+  if (el3 && C_TL.labels.length) {
+    chartInstances['chartTLKpi'] = new Chart(el3.getContext('2d'), {
+      type: 'doughnut',
+      data: {
+        labels: C_TL.labels,
+        datasets: [{ data: C_TL.total_kpi,
+          backgroundColor:['#f59e0b','#10b981','#3b82f6','#ef4444','#8b5cf6','#06b6d4'],
+          borderWidth: 2, borderColor:'#141720' }]
+      },
+      options: { responsive:true, plugins:{legend:{position:'right',labels:{font:{size:10}}}} }
+    });
+  }
+
+  // Monitoring PS
+  destroyChart('chartPS');
+  const el4 = document.getElementById('chartPS');
+  if (el4 && C_PS.labels.length) {
+    chartInstances['chartPS'] = new Chart(el4.getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels: C_PS.labels,
+        datasets: [
+          { label:'Target PS', data:C_PS.target_ps, backgroundColor:COLORS.blue_dim,
+            borderColor:COLORS.blue, borderWidth:1.5, borderRadius:4 },
+          { label:'Total PS', data:C_PS.total_ps, backgroundColor:COLORS.green_dim,
+            borderColor:COLORS.green, borderWidth:1.5, borderRadius:4 },
+        ]
+      },
+      options: { responsive:true, plugins:{legend:{position:'bottom'}},
+        scales:{ y:{ beginAtZero:true } } }
+    });
+  }
+
+  // Decay Rate
+  destroyChart('chartDecay');
+  const el5 = document.getElementById('chartDecay');
+  if (el5 && C_DECAY.labels.length) {
+    chartInstances['chartDecay'] = new Chart(el5.getContext('2d'), {
+      type: 'line',
+      data: {
+        labels: C_DECAY.labels,
+        datasets: [
+          { label:'PS', data:C_DECAY.ps, borderColor:COLORS.accent,
+            backgroundColor:COLORS.accent_dim, tension:.4, fill:true, pointRadius:4 },
+          { label:'Bill 1', data:C_DECAY.bill1, borderColor:COLORS.green,
+            backgroundColor:'transparent', tension:.4, pointRadius:3 },
+          { label:'Bill 2', data:C_DECAY.bill2, borderColor:COLORS.blue,
+            backgroundColor:'transparent', tension:.4, pointRadius:3 },
+          { label:'Bill 3', data:C_DECAY.bill3, borderColor:'#8b5cf6',
+            backgroundColor:'transparent', tension:.4, pointRadius:3 },
+          { label:'Bill 6', data:C_DECAY.bill6, borderColor:COLORS.red,
+            backgroundColor:COLORS.red_dim, tension:.4, fill:true, pointRadius:4 },
+        ]
+      },
+      options: { responsive:true, plugins:{legend:{position:'bottom',labels:{font:{size:10}}}},
+        scales:{ y:{ beginAtZero:true } },
+        interaction:{ mode:'index', intersect:false } }
+    });
+  }
+
+  // DJP per TL
+  destroyChart('chartDJP');
+  const el6 = document.getElementById('chartDJP');
+  if (el6 && C_DJP.labels.length) {
+    chartInstances['chartDJP'] = new Chart(el6.getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels: C_DJP.labels,
+        datasets: [
+          { label:'List Tugas', data:C_DJP.list_tugas, backgroundColor:COLORS.blue_dim,
+            borderColor:COLORS.blue, borderWidth:1.5, borderRadius:4 },
+          { label:'Total DJP', data:C_DJP.total_djp, backgroundColor:COLORS.green_dim,
+            borderColor:COLORS.green, borderWidth:1.5, borderRadius:4 },
+        ]
+      },
+      options: { responsive:true, plugins:{legend:{position:'bottom'}},
+        scales:{ y:{ beginAtZero:true } } }
+    });
+  }
+}
+
+// Render on load
+document.addEventListener('DOMContentLoaded', renderCharts);
+</script>
+{% endblock %}

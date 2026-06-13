@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% block title %}Informasi Pribadi{% endblock %}
+{% block page_title %}Profil Saya{% endblock %}
+{% block breadcrumb %}Profil / Informasi Pribadi{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width: 700px; margin: 0 auto;">
+  <div class="card-header">
+    <div class="card-title">Data Diri</div>
+    <small>Isi data dengan benar untuk keperluan administrasi.</small>
+  </div>
+
+  <form method="POST" action="{{ url_for('profile') }}" {{ csrf_token() }}>
+    
+    <div class="form-row">
+      <div class="form-group">
+        <label>Username (tidak bisa diubah)</label>
+        <input type="text" class="form-control" value="{{ user.username }}" disabled readonly style="background:#2a2f3e;">
+      </div>
+      <div class="form-group">
+        <label>Role (tidak bisa diubah)</label>
+        <input type="text" class="form-control" value="{{ user.role }}" disabled readonly style="background:#2a2f3e;">
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>Nama Lengkap *</label>
+        <input type="text" name="nama" class="form-control" value="{{ user.nama or '' }}" required>
+      </div>
+      <div class="form-group">
+        <label>Email</label>
+        <input type="email" name="email" class="form-control" value="{{ user.email or '' }}" placeholder="email@contoh.com">
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>NIK *</label>
+        <input type="text" name="nik" class="form-control" value="{{ user.nik or '' }}" required>
+      </div>
+      <div class="form-group">
+        <label>No. HP / WhatsApp</label>
+        <input type="text" name="no_hp" class="form-control" value="{{ user.no_hp or '' }}" placeholder="08xxxxxxxxxx">
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>Wilayah Operasional (WOK) *</label>
+        <select name="wok" class="form-control" required>
+          <option value="">Pilih WOK</option>
+          {% for w in wok_list %}
+            <option value="{{ w }}" {% if user.wok == w %}selected{% endif %}>{{ w }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Area (detail lokasi kerja)</label>
+        <input type="text" name="area" class="form-control" value="{{ user.area or '' }}" placeholder="Contoh: Jakarta Selatan">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Alamat Lengkap</label>
+      <textarea name="alamat" class="form-control" rows="3" placeholder="Alamat rumah atau domisili">{{ user.alamat or '' }}</textarea>
+    </div>
+
+    <div class="form-actions" style="display: flex; gap: 12px; margin-top: 20px;">
+      <button type="submit" class="btn btn-primary">Simpan Perubahan</button>
+      <a href="{{ url_for('dashboard') }}" class="btn btn-ghost">Kembali ke Dashboard</a>
+    </div>
+  </form>
+
+  <hr style="margin: 24px 0;">
+  <div class="text-center">
+    <a href="{{ url_for('change_password') }}" class="btn btn-sm btn-secondary">Ganti Password</a>
+  </div>
+</div>
+
+<style>
+  .form-row {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+  .form-row .form-group {
+    flex: 1;
+  }
+  @media (max-width: 600px) {
+    .form-row { flex-direction: column; gap: 8px; }
+  }
+  .form-group label {
+    display: block;
+    margin-bottom: 6px;
+    font-weight: 600;
+    font-size: 13px;
+  }
+  .form-control {
+    width: 100%;
+    padding: 8px 12px;
+    background: var(--bg, #1e1f2c);
+    border: 1px solid var(--border, #2d2f3e);
+    border-radius: 6px;
+    color: var(--text, #eee);
+  }
+  .form-control[disabled] {
+    opacity: 0.7;
+    cursor: not-allowed;
+  }
+  textarea.form-control {
+    resize: vertical;
+  }
+  .btn-primary {
+    background: var(--accent, #f59e0b);
+    border: none;
+    padding: 8px 20px;
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .btn-ghost {
+    background: transparent;
+    border: 1px solid var(--border, #4a5568);
+    padding: 8px 20px;
+    border-radius: 6px;
+    text-decoration: none;
+    color: var(--text, #eee);
+  }
+  hr {
+    border-color: var(--border, #2d2f3e);
+  }
+</style>
+{% endblock %}

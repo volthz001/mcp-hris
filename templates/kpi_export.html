@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Laporan KPI — {{ wok }} {{ bulan_label }} {{ year }}</title>
+  {# Fonts: load online jika tersedia, fallback ke system stack agar offline tetap rapi #}
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap"
+        rel="stylesheet" media="print" onload="this.media='all'">
+  <style>
+    /* Fallback font stack agar tetap tampil rapi tanpa internet */
+    :root {
+      --font-fallback: 'IBM Plex Sans', 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+      --mono-fallback: 'IBM Plex Mono', 'JetBrains Mono', 'Courier New', monospace;
+    }
+    body { font-family: var(--font-fallback) !important; }
+    .mono, th, .card-subtitle, .stat-label, .section-title,
+    .cover-tag, .cover-meta-label { font-family: var(--mono-fallback) !important; }
+  </style>
+  <style>
+    /* ═══════════════════════════════════════════
+       RESET & BASE
+    ═══════════════════════════════════════════ */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:           #0F0F12;
+      --bg-card:      #18181D;
+      --bg-hover:     #21212A;
+      --border:       #25252F;
+      --text:         #FAFAF9;
+      --text-sec:     #A1A1AA;
+      --text-muted:   #52525B;
+      --accent:       #F59E0B;
+      --accent-dim:   rgba(245,158,11,0.12);
+      --green:        #10B981;
+      --green-dim:    rgba(16,185,129,0.12);
+      --blue:         #3B82F6;
+      --blue-dim:     rgba(59,130,246,0.12);
+      --red:          #EF4444;
+      --red-dim:      rgba(239,68,68,0.12);
+      --font:         'IBM Plex Sans', 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+      --mono:         'IBM Plex Mono', 'JetBrains Mono', 'Courier New', monospace;
+      --r:            10px;
+    }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      font-size: 13px;
+      line-height: 1.6;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    /* ═══════════════════════════════════════════
+       LAYOUT
+    ═══════════════════════════════════════════ */
+    .page { max-width: 1100px; margin: 0 auto; padding: 32px 24px 64px; }
+
+    /* ═══════════════════════════════════════════
+       COVER HEADER
+    ═══════════════════════════════════════════ */
+    .cover {
+      background: linear-gradient(135deg, #0F0F12 0%, #1a1a24 50%, #141420 100%);
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--accent);
+      border-radius: var(--r);
+      padding: 28px 32px;
+      margin-bottom: 28px;
+      position: relative;
+      overflow: hidden;
+    }
+    .cover::after {
+      content: '';
+      position: absolute;
+      top: -40px; right: -40px;
+      width: 200px; height: 200px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(245,158,11,.06) 0%, transparent 70%);
+    }
+    .cover-tag {
+      font-family: var(--mono);
+      font-size: 9px; letter-spacing: 3px;
+      color: var(--accent); text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+    .cover-title {
+      font-size: 26px; font-weight: 700;
+      letter-spacing: -.5px; color: var(--text);
+      margin-bottom: 6px;
+    }
+    .cover-title span { color: var(--accent); }
+    .cover-meta {
+      display: flex; gap: 20px; flex-wrap: wrap;
+      margin-top: 16px; padding-top: 16px;
+      border-top: 1px solid var(--border);
+    }
+    .cover-meta-item { }
+    .cover-meta-label {
+      font-family: var(--mono); font-size: 9px;
+      letter-spacing: 1.5px; color: var(--text-muted);
+      text-transform: uppercase; margin-bottom: 3px;
+    }
+    .cover-meta-value { font-size: 13px; font-weight: 600; color: var(--text); }
+
+    .version-badge {
+      position: absolute; top: 16px; right: 16px;
+      font-family: var(--mono); font-size: 10px;
+      padding: 3px 10px; border-radius: 4px;
+      background: rgba(59,130,246,.12); color: var(--blue);
+      border: 1px solid rgba(59,130,246,.25);
+    }
+
+    /* ═══════════════════════════════════════════
+       TOOLBAR (hidden in print)
+    ═══════════════════════════════════════════ */
+    .toolbar {
+      display: flex; gap: 8px; justify-content: flex-end;
+      margin-bottom: 20px; flex-wrap: wrap;
+    }
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 8px 16px; border-radius: 7px;
+      font-family: var(--font); font-size: 13px; font-weight: 500;
+      cursor: pointer; border: 1px solid var(--border);
+      text-decoration: none; transition: all .15s;
+    }
+    .btn-primary { background: var(--accent); color: #000; border-color: var(--accent); }
+    .btn-primary:hover { background: #fbbf24; }
+    .btn-ghost { background: var(--bg-card); color: var(--text-sec); }
+    .btn-ghost:hover { background: var(--bg-hover); color: var(--text); }
+
+    /* ═══════════════════════════════════════════
+       STAT GRID
+    ═══════════════════════════════════════════ */
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 12px;
+      margin-bottom: 28px;
+    }
+    .stat-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      padding: 16px 18px;
+      position: relative; overflow: hidden;
+    }
+    .stat-card::before { content:''; position:absolute; top:0;left:0;right:0; height:2px; }
+    .stat-card.amber::before { background: var(--accent); }
+    .stat-card.green::before { background: var(--green); }
+    .stat-card.blue::before  { background: var(--blue); }
+    .stat-card.red::before   { background: var(--red); }
+    .stat-label {
+      font-family: var(--mono); font-size: 9px; letter-spacing: 1.5px;
+      text-transform: uppercase; color: var(--text-muted); margin-bottom: 6px;
+    }
+    .stat-value { font-size: 26px; font-weight: 700; letter-spacing: -1px; }
+    .stat-card.amber .stat-value { color: var(--accent); }
+    .stat-card.green .stat-value { color: var(--green); }
+    .stat-card.blue  .stat-value { color: var(--blue); }
+    .stat-card.red   .stat-value { color: var(--red); }
+    .stat-sub { font-size: 11px; color: var(--text-muted); margin-top: 3px; }
+
+    /* ═══════════════════════════════════════════
+       SECTION HEADERS
+    ═══════════════════════════════════════════ */
+    .section-title {
+      font-family: var(--mono); font-size: 9px; letter-spacing: 2.5px;
+      color: var(--text-muted); text-transform: uppercase;
+      display: flex; align-items: center; gap: 8px;
+      margin-bottom: 14px; margin-top: 32px;
+    }
+    .section-title::before {
+      content: '';
+      display: inline-block; width: 3px; height: 12px;
+      background: var(--accent); border-radius: 2px;
+    }
+    .section-title::after { content:''; flex:1; height:1px; background:var(--border); }
+
+    /* ═══════════════════════════════════════════
+       CARD
+    ═══════════════════════════════════════════ */
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      margin-bottom: 16px;
+      overflow: hidden;
+    }
+    .card-header {
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+    }
+    .card-title { font-size: 13px; font-weight: 600; color: var(--text); }
+    .card-subtitle { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+    .card-body { padding: 18px; }
+
+    /* ═══════════════════════════════════════════
+       CHART GRID (2-col)
+    ═══════════════════════════════════════════ */
+    .chart-grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+    .chart-img-wrap { padding: 16px; }
+    .chart-img-wrap img {
+      width: 100%; border-radius: 6px;
+      display: block;
+    }
+    .chart-img-wrap-full { padding: 16px; }
+    .chart-img-wrap-full img { width: 100%; border-radius: 6px; display: block; }
+
+    /* ═══════════════════════════════════════════
+       TABLE
+    ═══════════════════════════════════════════ */
+    .data-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+    .data-table th, .data-table td {
+      border: 1px solid var(--border); padding: 8px 12px; text-align: left;
+    }
+    .data-table th {
+      background: var(--bg-hover); font-family: var(--mono); font-size: 9px;
+      letter-spacing: 1px; text-transform: uppercase; color: var(--text-muted);
+    }
+    .data-table tr:nth-child(even) td { background: rgba(255,255,255,.015); }
+    .mono { font-family: var(--mono); }
+    .badge-aktif { display:inline-block; padding:2px 8px; border-radius:3px; font-size:10px; font-weight:600; background:rgba(16,185,129,.15); color:#10b981; }
+    .badge-nonaktif { display:inline-block; padding:2px 8px; border-radius:3px; font-size:10px; font-weight:600; background:rgba(239,68,68,.15); color:#ef4444; }
+
+    /* ═══════════════════════════════════════════
+       FOOTER
+    ═══════════════════════════════════════════ */
+    .footer {
+      margin-top: 48px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+      display: flex; justify-content: space-between; align-items: center;
+      flex-wrap: wrap; gap: 10px;
+      font-family: var(--mono); font-size: 10px; color: var(--text-muted);
+    }
+
+    /* ═══════════════════════════════════════════
+       PRINT
+    ═══════════════════════════════════════════ */
+    @media print {
+      body { background: #fff; color: #111; }
+      .toolbar { display: none !important; }
+      .card { border-color: #ddd; background: #fff; break-inside: avoid; }
+      .cover { background: #f9f9f9 !important; border-left-color: #f59e0b; }
+      .cover-title { color: #111; }
+      .cover-meta-value { color: #111; }
+      .version-badge { display: none; }
+      .section-title { color: #888; }
+      .stat-card { background: #fafafa; border-color: #e5e7eb; }
+      .stat-label, .stat-sub { color: #888; }
+      .data-table th { background: #f3f4f6; color: #666; }
+      .data-table th, .data-table td { border-color: #e5e7eb; }
+      .footer { color: #aaa; border-top-color: #e5e7eb; }
+      @page { margin: 15mm 12mm; size: A4 portrait; }
+    }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  {# ── Toolbar (browser only) ── #}
+  <div class="toolbar no-print">
+    <button class="btn btn-ghost" onclick="history.back()">← Kembali</button>
+    <button class="btn btn-primary" onclick="window.print()">🖨 Print / Simpan PDF</button>
+  </div>
+
+  {# ── Cover ── #}
+  <div class="cover">
+    <span class="version-badge">v{{ version or '1.0' }}</span>
+    <div class="cover-tag">PT. Mega Creative Promosindo · Laporan KPI Bulanan</div>
+    <div class="cover-title">KPI Monitoring — <span>{{ wok }}</span></div>
+    <div class="cover-meta">
+      <div class="cover-meta-item">
+        <div class="cover-meta-label">Periode</div>
+        <div class="cover-meta-value">{{ bulan_label }} {{ year }}</div>
+      </div>
+      <div class="cover-meta-item">
+        <div class="cover-meta-label">WOK</div>
+        <div class="cover-meta-value">{{ wok }}</div>
+      </div>
+      <div class="cover-meta-item">
+        <div class="cover-meta-label">Diupload Oleh</div>
+        <div class="cover-meta-value">{{ uploaded_by or '—' }}</div>
+      </div>
+      <div class="cover-meta-item">
+        <div class="cover-meta-label">Waktu Upload</div>
+        <div class="cover-meta-value">{{ upload_at or '—' }}</div>
+      </div>
+      <div class="cover-meta-item">
+        <div class="cover-meta-label">Digenerate</div>
+        <div class="cover-meta-value">{{ generated_at }}</div>
+      </div>
+      <div class="cover-meta-item">
+        <div class="cover-meta-label">Versi Data</div>
+        <div class="cover-meta-value">v{{ version or '1.0' }}</div>
+      </div>
+    </div>
+  </div>
+
+  {# ── Stat Cards ── #}
+  <div class="section-title">Ringkasan Bulanan</div>
+  <div class="stat-grid">
+    <div class="stat-card amber">
+      <div class="stat-label">Total PS</div>
+      <div class="stat-value">{{ "{:,}".format(total_ps) }}</div>
+      <div class="stat-sub">Pasang Baru</div>
+    </div>
+    <div class="stat-card blue">
+      <div class="stat-label">Total DJP</div>
+      <div class="stat-value">{{ "{:,}".format(total_djp) }}</div>
+      <div class="stat-sub">DJP Approved</div>
+    </div>
+    <div class="stat-card green">
+      <div class="stat-label">Briefing</div>
+      <div class="stat-value">{{ "{:,}".format(total_briefing) }}</div>
+      <div class="stat-sub">Morning Briefing</div>
+    </div>
+    <div class="stat-card green">
+      <div class="stat-label">SF Aktif</div>
+      <div class="stat-value">{{ sf_aktif }}</div>
+      <div class="stat-sub">dari {{ sf_total }} terdaftar</div>
+    </div>
+    <div class="stat-card red">
+      <div class="stat-label">SF Non-Aktif</div>
+      <div class="stat-value">{{ sf_nonaktif }}</div>
+      <div class="stat-sub">Deleted / Inactive</div>
+    </div>
+    <div class="stat-card amber">
+      <div class="stat-label">Avg ARPU</div>
+      <div class="stat-value" style="font-size:16px;">{{ "Rp {:,.0f}".format(avg_arpu) }}</div>
+      <div class="stat-sub">Total Rp {{ "{:,.0f}".format(total_arpu) }}</div>
+    </div>
+    <div class="stat-card blue">
+      <div class="stat-label">Team Leader</div>
+      <div class="stat-value">{{ total_tl }}</div>
+      <div class="stat-sub">TL Aktif</div>
+    </div>
+  </div>
+
+  {# ══════════════════════════════════
+     SHEET PS — Tren Harian
+  ══════════════════════════════════ #}
+  <div class="section-title">Sheet PS — Tren Harian</div>
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">PS Harian — {{ bulan_label }} {{ year }}</div>
+      <div class="card-subtitle">Jumlah pasang baru per tanggal · {{ wok }}</div>
+    </div>
+    <div class="chart-img-wrap-full">
+      {% if chart_images and chart_images.psHarian %}
+      <img src="{{ chart_images.psHarian }}" alt="Chart PS Harian">
+      {% else %}
+      <div style="height:200px;display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-family:var(--mono);font-size:11px;">
+        [Grafik tidak tersedia]
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  {# ══════════════════════════════════
+     SHEET DJP — Harian + Kategori
+  ══════════════════════════════════ #}
+  <div class="section-title">Sheet DJP Approve — Aktivitas Harian</div>
+  <div class="chart-grid-2">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">DJP & Briefing Harian</div>
+        <div class="card-subtitle">Aktivitas per tanggal</div>
+      </div>
+      <div class="chart-img-wrap">
+        {% if chart_images and chart_images.djpHarian %}
+        <img src="{{ chart_images.djpHarian }}" alt="Chart DJP Harian">
+        {% else %}
+        <div style="height:180px;display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:11px;">[Grafik tidak tersedia]</div>
+        {% endif %}
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Distribusi Kategori PS</div>
+        <div class="card-subtitle">New Sales vs Upsell dll.</div>
+      </div>
+      <div class="chart-img-wrap">
+        {% if chart_images and chart_images.kategori %}
+        <img src="{{ chart_images.kategori }}" alt="Chart Kategori PS">
+        {% else %}
+        <div style="height:180px;display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:11px;">[Grafik tidak tersedia]</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  {# ══════════════════════════════════
+     SHEET PS+DJP — Performa per TL
+  ══════════════════════════════════ #}
+  <div class="section-title">Sheet PS+DJP — Performa per Team Leader</div>
+  <div class="chart-grid-2">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">PS per Team Leader</div>
+        <div class="card-subtitle">Total PS di bawah masing-masing TL</div>
+      </div>
+      <div class="chart-img-wrap">
+        {% if chart_images and chart_images.tlPs %}
+        <img src="{{ chart_images.tlPs }}" alt="Chart PS per TL">
+        {% else %}
+        <div style="height:240px;display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:11px;">[Grafik tidak tersedia]</div>
+        {% endif %}
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">DJP per Team Leader</div>
+        <div class="card-subtitle">Total DJP approved per supervisor</div>
+      </div>
+      <div class="chart-img-wrap">
+        {% if chart_images and chart_images.tlDjp %}
+        <img src="{{ chart_images.tlDjp }}" alt="Chart DJP per TL">
+        {% else %}
+        <div style="height:240px;display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:11px;">[Grafik tidak tersedia]</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  {# ══════════════════════════════════
+     SHEET PS — Top SF + Paket
+  ══════════════════════════════════ #}
+  <div class="section-title">Sheet PS — Top Sales Force & Distribusi Paket</div>
+  <div class="chart-grid-2">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Top 15 SF — Produksi PS</div>
+        <div class="card-subtitle">Sales Force dengan PS tertinggi</div>
+      </div>
+      <div class="chart-img-wrap">
+        {% if chart_images and chart_images.topSf %}
+        <img src="{{ chart_images.topSf }}" alt="Chart Top SF">
+        {% else %}
+        <div style="height:280px;display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:11px;">[Grafik tidak tersedia]</div>
+        {% endif %}
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Distribusi Paket</div>
+        <div class="card-subtitle">Breakdown produk yang terjual</div>
+      </div>
+      <div class="chart-img-wrap">
+        {% if chart_images and chart_images.paket %}
+        <img src="{{ chart_images.paket }}" alt="Chart Paket">
+        {% else %}
+        <div style="height:280px;display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:11px;">[Grafik tidak tersedia]</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  {# ══════════════════════════════════
+     SHEET PS — Data Tabel Harian
+  ══════════════════════════════════ #}
+  {% if ps_harian_table %}
+  <div class="section-title">Sheet PS — Data Harian (Tabel)</div>
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">Rincian PS Harian</div>
+      <div class="card-subtitle">{{ ps_harian_table|length }} hari dengan data</div>
+    </div>
+    <div style="overflow-x:auto;">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Tanggal</th>
+            <th>Jumlah PS</th>
+            <th>% dari Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in ps_harian_table %}
+          {% if row.ps > 0 %}
+          <tr>
+            <td>{{ row.tanggal }}</td>
+            <td class="mono">{{ row.ps }}</td>
+            <td class="mono">{{ "%.1f"|format(row.ps / total_ps * 100 if total_ps else 0) }}%</td>
+          </tr>
+          {% endif %}
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+  {# ══════════════════════════════════
+     SHEET DJP — Tabel Harian
+  ══════════════════════════════════ #}
+  {% if djp_harian_table %}
+  <div class="section-title">Sheet DJP Approve — Data Harian (Tabel)</div>
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">Rincian DJP & Briefing Harian</div>
+      <div class="card-subtitle">{{ djp_harian_table|length }} hari dengan data</div>
+    </div>
+    <div style="overflow-x:auto;">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Tanggal</th>
+            <th>DJP</th>
+            <th>Briefing</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in djp_harian_table %}
+          {% if row.djp > 0 or row.briefing > 0 %}
+          <tr>
+            <td>{{ row.tanggal }}</td>
+            <td class="mono">{{ row.djp }}</td>
+            <td class="mono">{{ row.briefing }}</td>
+          </tr>
+          {% endif %}
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+  {# ══════════════════════════════════
+     SHEET PS+DJP — Tabel per TL
+  ══════════════════════════════════ #}
+  {% if tl_summary_table %}
+  <div class="section-title">Sheet PS+DJP — Rekapitulasi per Team Leader</div>
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">Performa Team Leader</div>
+      <div class="card-subtitle">{{ tl_summary_table|length }} Team Leader aktif</div>
+    </div>
+    <div style="overflow-x:auto;">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Team Leader</th>
+            <th>PS</th>
+            <th>DJP</th>
+            <th>% PS</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in tl_summary_table %}
+          <tr>
+            <td>{{ loop.index }}</td>
+            <td><strong>{{ row.nama }}</strong></td>
+            <td class="mono">{{ row.ps }}</td>
+            <td class="mono">{{ row.djp }}</td>
+            <td class="mono">{{ "%.1f"|format(row.ps / total_ps * 100 if total_ps else 0) }}%</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+  {# ══════════════════════════════════
+     SHEET DATABASE — Data SF
+  ══════════════════════════════════ #}
+  {% if db_sf_list %}
+  <div class="section-title">Sheet Database — Data Sales Force</div>
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">Database Sales Force — {{ wok }}</div>
+      <div class="card-subtitle">{{ db_sf_list|length }} SF terdaftar</div>
+    </div>
+    <div style="overflow-x:auto;">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Nama Sales Force</th>
+            <th>Kode SF</th>
+            <th>Team Leader</th>
+            <th>Kode TL</th>
+            <th>Status SF</th>
+            <th>Status TL</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for sf in db_sf_list %}
+          <tr>
+            <td>{{ loop.index }}</td>
+            <td><strong>{{ sf.nama_sf }}</strong></td>
+            <td class="mono" style="font-size:10px;">{{ sf.kode_sf or '—' }}</td>
+            <td>{{ sf.team_leader or '—' }}</td>
+            <td class="mono" style="font-size:10px;">{{ sf.kode_tl or '—' }}</td>
+            <td>
+              {% if sf.status_sf and sf.status_sf|lower in ['aktif','active'] %}
+              <span class="badge-aktif">AKTIF</span>
+              {% else %}
+              <span class="badge-nonaktif">{{ sf.status_sf or 'NON-AKTIF' }}</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if sf.status_tl and sf.status_tl|lower in ['aktif','active'] %}
+              <span class="badge-aktif">AKTIF</span>
+              {% else %}
+              <span class="badge-nonaktif">{{ sf.status_tl or '—' }}</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+  {# ── Footer ── #}
+  <div class="footer">
+    <div>
+      KPI Monitoring — {{ wok }} · {{ bulan_label }} {{ year }} · v{{ version or '1.0' }}
+    </div>
+    <div>
+      Digenerate: {{ generated_at }} · PT. Mega Creative Promosindo
+    </div>
+  </div>
+
+</div>
+
+{# ── PDF auto-trigger (hanya jika mode=pdf) ── #}
+{% if export_mode == 'pdf' %}
+<script>
+  window.addEventListener('load', () => {
+    setTimeout(() => window.print(), 400);
+  });
+</script>
+{% endif %}
+
+</body>
+</html>

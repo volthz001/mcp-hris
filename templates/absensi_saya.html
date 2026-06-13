@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+{% block title %}Kehadiran Saya{% endblock %}
+{% block page_title %}Kehadiran Saya{% endblock %}
+{% block breadcrumb %}Absensi / Kehadiran Saya{% endblock %}
+
+{% block content %}
+
+<div class="mb-4">
+  <div class="page-title">📋 Riwayat Kehadiran</div>
+  <div class="page-desc">Halo, <strong>{{ (user.nama if user and user.nama else session.name) or 'User' }}</strong> — Berikut catatan absensi Anda</div>
+</div>
+
+<!-- Ringkasan Statistik -->
+<div class="stat-grid" style="grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); margin-bottom: 24px;">
+  <div class="stat-card green">
+    <div class="stat-label">Hadir</div>
+    <div class="stat-value">{{ summary.hadir }}</div>
+    <div class="stat-sub">hari</div>
+  </div>
+  <div class="stat-card red">
+    <div class="stat-label">Alpha</div>
+    <div class="stat-value">{{ summary.alpha }}</div>
+    <div class="stat-sub">hari</div>
+  </div>
+  <div class="stat-card blue">
+    <div class="stat-label">Izin</div>
+    <div class="stat-value">{{ summary.izin }}</div>
+    <div class="stat-sub">hari</div>
+  </div>
+  <div class="stat-card accent">
+    <div class="stat-label">Sakit</div>
+    <div class="stat-value">{{ summary.sakit }}</div>
+    <div class="stat-sub">hari</div>
+  </div>
+</div>
+
+<!-- Filter Form -->
+<div class="filter-bar">
+  <form method="GET" action="{{ url_for('absensi_history') }}">
+    <div class="filter-row">
+      <div class="filter-group">
+        <label>Dari Tanggal</label>
+        <input type="date" name="dari" value="{{ filter_dari }}" style="min-width:160px;">
+      </div>
+      <div class="filter-group">
+        <label>Sampai Tanggal</label>
+        <input type="date" name="sampai" value="{{ filter_sampai }}" style="min-width:160px;">
+      </div>
+      <div class="filter-group">
+        <label>Status</label>
+        <select name="status" style="min-width:130px;">
+          <option value="">Semua</option>
+          <option value="hadir" {% if filter_status == 'hadir' %}selected{% endif %}>Hadir</option>
+          <option value="absen" {% if filter_status == 'absen' %}selected{% endif %}>Absen</option>
+          <option value="izin"  {% if filter_status == 'izin' %}selected{% endif %}>Izin</option>
+          <option value="sakit" {% if filter_status == 'sakit' %}selected{% endif %}>Sakit</option>
+          <option value="alpha" {% if filter_status == 'alpha' %}selected{% endif %}>Alpha</option>
+        </select>
+      </div>
+      <div class="filter-group" style="flex-direction:row; gap:8px;">
+        <button type="submit" class="btn btn-primary btn-sm">Filter</button>
+        <a href="{{ url_for('absensi_history') }}" class="btn btn-ghost btn-sm">Reset</a>
+      </div>
+    </div>
+  </form>
+</div>
+
+<!-- Tabel Data -->
+<div class="card">
+  <div class="card-header">
+    <div>
+      <div class="card-title">Riwayat Absensi</div>
+      <div class="card-subtitle">
+        Halaman {{ page }} dari {{ total_pages }} · {{ total }} total catatan
+      </div>
+    </div>
+  </div>
+  <div class="table-wrap">
+    {% if data %}
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Tanggal</th>
+          <th>Hari</th>
+          <th>Jam Masuk</th>
+          <th>Jam Keluar</th>
+          <th>Status</th>
+          <th>Keterangan</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in data %}
+        <tr>
+          <td class="text-mono">{{ loop.index + (page-1)*20 }}</td>
+          <td class="text-mono">{{ item.tanggal }}</td>
+          <td>
+            <span id="hari-{{ loop.index }}" data-tgl="{{ item.tanggal }}"></span>
+          </td>
+          <td class="text-mono">{{ item.jam_masuk or '-' }}</td>
+          <td class="text-mono">{{ item.jam_keluar or '-' }}</td>
+          <td>
+            <span class="badge badge-{{ item.status }}">
+              {{ (item.status or 'absen') | upper }}
+            </span>
+          </td>
+          <td class="muted text-sm">{{ item.keterangan or '-' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div style="padding:48px; text-align:center;">
+      <div style="font-size:32px; margin-bottom:12px;">📭</div>
+      <div style="color:var(--text-muted);">Belum ada data absensi untuk filter ini.</div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Pagination -->
+{% if total_pages > 1 %}
+<div style="display:flex; justify-content:center; gap:6px; margin-top:20px; flex-wrap:wrap;">
+  {% if page > 1 %}
+  <a href="?page={{ page-1 }}&dari={{ filter_dari }}&sampai={{ filter_sampai }}&status={{ filter_status }}"
+     class="btn btn-ghost btn-sm">← Prev</a>
+  {% endif %}
+
+  {% for p in range(1, total_pages + 1) %}
+    {% if p == page %}
+      <span class="btn btn-primary btn-sm">{{ p }}</span>
+    {% elif p == 1 or p == total_pages or (p >= page-2 and p <= page+2) %}
+      <a href="?page={{ p }}&dari={{ filter_dari }}&sampai={{ filter_sampai }}&status={{ filter_status }}"
+         class="btn btn-ghost btn-sm">{{ p }}</a>
+    {% elif p == page-3 or p == page+3 %}
+      <span class="btn btn-ghost btn-sm" style="cursor:default; opacity:.4;">…</span>
+    {% endif %}
+  {% endfor %}
+
+  {% if page < total_pages %}
+  <a href="?page={{ page+1 }}&dari={{ filter_dari }}&sampai={{ filter_sampai }}&status={{ filter_status }}"
+     class="btn btn-ghost btn-sm">Next →</a>
+  {% endif %}
+</div>
+{% endif %}
+
+<script>
+  const HARI = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
+  document.querySelectorAll('[data-tgl]').forEach(el => {
+    const d = new Date(el.dataset.tgl);
+    if (!isNaN(d)) el.textContent = HARI[d.getDay()];
+  });
+</script>
+
+{% endblock %}

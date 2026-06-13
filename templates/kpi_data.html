@@ -1,0 +1,246 @@
+{% extends "base.html" %}
+
+{% block title %}Data KPI – {{ sheet|upper }} {{ bulan_label }} {{ year }} {{ wok }}{% endblock %}
+
+{% block page_title %}Data KPI - {{ sheet|upper }}{% endblock %}
+{% block breadcrumb %}KPI / Data / {{ sheet|upper }}{% endblock %}
+
+{% block extra_style %}
+<style>
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+  .data-table th, .data-table td {
+    border: 1px solid var(--border);
+    padding: 8px 10px;
+    text-align: left;
+  }
+  .data-table th {
+    background: var(--bg-hover);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .data-table tr:hover td {
+    background: var(--bg-hover);
+  }
+  .filter-bar {
+    background: var(--bg-card);
+    padding: 16px;
+    border-radius: var(--radius-md);
+    margin-bottom: 20px;
+  }
+  .filter-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: flex-end;
+  }
+  .filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .filter-group label {
+    font-size: 10px;
+    font-family: var(--font-mono);
+    color: var(--text-muted);
+    text-transform: uppercase;
+  }
+  .pagination {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    margin-top: 20px;
+    flex-wrap: wrap;
+  }
+  .pagination a, .pagination span {
+    padding: 6px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    text-decoration: none;
+    color: var(--text-primary);
+    font-size: 12px;
+  }
+  .pagination .active {
+    background: var(--accent);
+    color: #000;
+    border-color: var(--accent);
+  }
+  .pagination .disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .per-page-select {
+    margin-top: 16px;
+    text-align: right;
+  }
+  .badge-aktif { background: rgba(16,185,129,.15); color: #10b981; }
+  .badge-nonaktif { background: rgba(239,68,68,.15); color: #ef4444; }
+  .info-summary {
+    margin-bottom: 12px;
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="flex items-center justify-between mb-4">
+  <div>
+    <div class="page-title">Data KPI - {{ sheet|upper }}</div>
+    <div class="page-desc">{{ bulan_label }} {{ year }} · WOK {{ wok }}</div>
+  </div>
+  <div class="flex gap-2">
+    <a href="{{ url_for('kpi') }}" class="btn btn-ghost btn-sm">← Kembali ke Dashboard</a>
+    <a href="{{ url_for('kpi_upload') }}" class="btn btn-primary btn-sm">⬆ Upload Excel</a>
+  </div>
+</div>
+
+{# Filter Form #}
+<form method="get" action="{{ url_for('kpi_data') }}" class="filter-bar">
+  <div class="filter-row">
+    <div class="filter-group">
+      <label>Sheet</label>
+      <select name="sheet">
+        <option value="ps" {% if sheet == 'ps' %}selected{% endif %}>PS</option>
+        <option value="djp" {% if sheet == 'djp' %}selected{% endif %}>DJP Approve</option>
+        <option value="database" {% if sheet == 'database' %}selected{% endif %}>Database</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <label>Bulan</label>
+      <select name="month">
+        {% for num, nama in months_list %}
+        <option value="{{ num }}" {% if num == month %}selected{% endif %}>{{ nama }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="filter-group">
+      <label>Tahun</label>
+      <input type="number" name="year" value="{{ year }}" style="width:90px;">
+    </div>
+    <div class="filter-group">
+      <label>WOK</label>
+      <select name="wok">
+        {% for w in wok_list %}
+        <option value="{{ w }}" {% if w == wok %}selected{% endif %}>{{ w }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="filter-group">
+      <label>Cari</label>
+      <input type="text" name="search" value="{{ search }}" placeholder="Nama, kode, ..." style="min-width:180px;">
+    </div>
+    <div class="filter-group">
+      <label>&nbsp;</label>
+      <button type="submit" class="btn btn-primary btn-sm">Filter</button>
+    </div>
+  </div>
+</form>
+
+{# Info total #}
+<div class="info-summary">
+  Menampilkan {{ data|length }} dari total {{ total }} data
+  (halaman {{ page }} dari {{ pages }})
+</div>
+
+{# Tabel data #}
+<div class="card">
+  <div class="table-wrap" style="overflow-x:auto;">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          {% for h in headers %}
+          <th>{{ h }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in data %}
+        <tr>
+          <td>{{ loop.index + (page-1)*per_page }}</td>
+          {% for field in fields %}
+          <td>
+            {% if field == 'arpu' %}
+              Rp {{ "{:,.0f}".format(row.get(field, 0)) }}
+            {% elif field == 'status_sf' %}
+              {% if row.get(field, '').upper() in ['AKTIF','ACTIVE'] %}
+                <span class="badge-aktif">AKTIF</span>
+              {% else %}
+                <span class="badge-nonaktif">{{ row.get(field, '—') }}</span>
+              {% endif %}
+            {% elif field == 'status_tl' %}
+              {% if row.get(field, '').upper() in ['AKTIF','ACTIVE'] %}
+                <span class="badge-aktif">AKTIF</span>
+              {% else %}
+                <span class="badge-nonaktif">{{ row.get(field, '—') }}</span>
+              {% endif %}
+            {% else %}
+              {{ row.get(field, '—') }}
+            {% endif %}
+          </td>
+          {% endfor %}
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="{{ headers|length + 1 }}" style="text-align:center;">Tidak ada data untuk filter ini</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{# Pagination #}
+{% if pages > 1 %}
+<div class="pagination">
+  {% if page > 1 %}
+  <a href="{{ url_for('kpi_data', sheet=sheet, month=month, year=year, wok=wok, search=search, page=page-1, per_page=per_page) }}">« Prev</a>
+  {% else %}
+  <span class="disabled">« Prev</span>
+  {% endif %}
+
+  {% for p in range([1, page-3]|max, [pages, page+3]|min + 1) %}
+    {% if p == page %}
+    <span class="active">{{ p }}</span>
+    {% else %}
+    <a href="{{ url_for('kpi_data', sheet=sheet, month=month, year=year, wok=wok, search=search, page=p, per_page=per_page) }}">{{ p }}</a>
+    {% endif %}
+  {% endfor %}
+
+  {% if page < pages %}
+  <a href="{{ url_for('kpi_data', sheet=sheet, month=month, year=year, wok=wok, search=search, page=page+1, per_page=per_page) }}">Next »</a>
+  {% else %}
+  <span class="disabled">Next »</span>
+  {% endif %}
+</div>
+{% endif %}
+
+<div class="per-page-select">
+  <label>Baris per halaman:
+    <select id="perPageSelect" onchange="changePerPage()">
+      <option value="20" {% if per_page == 20 %}selected{% endif %}>20</option>
+      <option value="50" {% if per_page == 50 %}selected{% endif %}>50</option>
+      <option value="100" {% if per_page == 100 %}selected{% endif %}>100</option>
+      <option value="200" {% if per_page == 200 %}selected{% endif %}>200</option>
+    </select>
+  </label>
+</div>
+
+<script>
+function changePerPage() {
+  const perPage = document.getElementById('perPageSelect').value;
+  const url = new URL(window.location.href);
+  url.searchParams.set('per_page', perPage);
+  url.searchParams.set('page', 1);
+  window.location.href = url.toString();
+}
+</script>
+
+{% endblock %}

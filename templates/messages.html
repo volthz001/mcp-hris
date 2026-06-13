@@ -1,0 +1,735 @@
+{% extends "base.html" %}
+{% block title %}Pesan{% endblock %}
+{% block page_title %}Pesan{% endblock %}
+{% block breadcrumb %}Komunikasi / Pesan{% endblock %}
+
+{% block extra_style %}
+<style>
+/* ══════════════════════════════════════════════════
+   LAYOUT — split panel email-style
+══════════════════════════════════════════════════ */
+.msg-layout {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  height: calc(100vh - 124px);
+  min-height: 500px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+/* ══ LEFT PANEL ══ */
+.msg-panel-left {
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  overflow: hidden; background: var(--bg-base);
+}
+.msg-panel-head {
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-card);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.msg-panel-head-title { font-size: 13px; font-weight: 700; color: var(--text-primary); }
+.msg-unread-pill {
+  background: var(--red); color: #fff;
+  font-family: 'IBM Plex Mono', monospace; font-size: 9px; font-weight: 700;
+  padding: 2px 7px; border-radius: 9px;
+}
+
+/* Tabs */
+.msg-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-card);
+}
+.msg-tab {
+  flex: 1; padding: 9px 0; text-align: center;
+  font-size: 11px; font-weight: 600;
+  color: var(--text-muted); text-decoration: none;
+  border-bottom: 2px solid transparent;
+  transition: all .15s; font-family: 'IBM Plex Mono', monospace;
+  letter-spacing: .3px; position: relative;
+}
+.msg-tab:hover { color: var(--text-primary); background: var(--bg-hover); }
+.msg-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.msg-tab .tab-count {
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--red); color: #fff;
+  font-size: 8px; font-weight: 700;
+  width: 14px; height: 14px; border-radius: 7px;
+  margin-left: 4px; vertical-align: middle;
+}
+
+/* Compose btn */
+.compose-trigger {
+  margin: 10px 12px 8px;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 8px 12px; border-radius: 7px;
+  background: var(--accent); color: #000; font-weight: 700;
+  font-size: 12px; cursor: pointer; border: none;
+  font-family: 'IBM Plex Sans', sans-serif; transition: all .15s;
+  text-decoration: none;
+}
+.compose-trigger:hover { background: var(--accent-hover); transform: translateY(-1px); }
+
+/* Search */
+.msg-search {
+  padding: 0 12px 8px;
+}
+.msg-search input {
+  width: 100%; padding: 6px 10px;
+  background: var(--bg-hover); border: 1px solid var(--border);
+  border-radius: 6px; color: var(--text-primary); font-size: 11px;
+  outline: none; transition: border-color .15s;
+}
+.msg-search input:focus { border-color: var(--accent); }
+.msg-search input::placeholder { color: var(--text-muted); }
+
+/* Conv items */
+.conv-list { flex: 1; overflow-y: auto; }
+.conv-item {
+  display: flex; gap: 10px; align-items: flex-start;
+  padding: 11px 14px; text-decoration: none;
+  border-bottom: 1px solid var(--border-light);
+  transition: background .1s; position: relative;
+  cursor: pointer;
+}
+.conv-item:hover   { background: var(--bg-hover); }
+.conv-item.active  { background: var(--accent-dim); border-left: 2px solid var(--accent); }
+.conv-item.unread  { background: rgba(245,158,11,.06); }
+.conv-item.unread .conv-name { font-weight: 700; }
+.conv-item.unread .conv-name::after {
+  content: '';
+  display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+  background: var(--accent); margin-left: 6px; vertical-align: middle;
+}
+
+.priority-pip { position: absolute; left: 0; top: 0; bottom: 0; width: 3px; }
+.priority-pip.penting  { background: var(--accent); }
+.priority-pip.mendesak { background: var(--red); }
+
+.conv-av {
+  width: 36px; height: 36px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 700;
+  flex-shrink: 0; border: 1.5px solid;
+}
+.conv-av.av-yellow { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+.conv-av.av-green  { background: var(--green-dim);  border-color: var(--green);  color: var(--green); }
+.conv-av.av-blue   { background: var(--blue-dim);   border-color: var(--blue);   color: var(--blue); }
+.conv-av.av-red    { background: var(--red-dim);    border-color: var(--red);    color: var(--red); }
+
+.conv-body { flex: 1; min-width: 0; }
+.conv-name {
+  font-size: 12px; color: var(--text-primary); font-weight: 500;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.conv-subj {
+  font-size: 11px; color: var(--text-secondary);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px;
+}
+.conv-prev {
+  font-size: 10px; color: var(--text-muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px;
+}
+.conv-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
+.conv-time { font-family: 'IBM Plex Mono', monospace; font-size: 9px; color: var(--text-muted); }
+
+.conv-empty {
+  padding: 36px 20px; text-align: center;
+  color: var(--text-muted); font-size: 12px;
+}
+.conv-empty .ei { font-size: 28px; opacity: .25; margin-bottom: 8px; }
+
+/* ══ RIGHT PANEL ══ */
+.msg-panel-right {
+  display: flex; flex-direction: column; overflow: hidden;
+}
+
+/* ── PANEL STATES: empty / view / compose ── */
+.rp-state { display: none; flex-direction: column; height: 100%; }
+.rp-state.visible { display: flex; }
+
+/* Empty state */
+.msg-empty-state {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  color: var(--text-muted); text-align: center; padding: 40px;
+}
+.msg-empty-state .ei { font-size: 52px; opacity: .15; margin-bottom: 16px; }
+.msg-empty-state p { font-size: 13px; max-width: 220px; line-height: 1.7; }
+
+/* ── MESSAGE VIEW ── */
+.view-header {
+  padding: 16px 22px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-card);
+}
+.view-subject {
+  font-size: 17px; font-weight: 700; color: var(--text-primary);
+  line-height: 1.3; margin-bottom: 10px;
+}
+.view-subject-row {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+}
+.view-meta-row {
+  display: flex; align-items: center; gap: 14px; margin-top: 10px; flex-wrap: wrap;
+}
+.view-sender {
+  display: flex; align-items: center; gap: 10px;
+}
+.view-sender-av {
+  width: 32px; height: 32px; border-radius: 50%;
+  background: var(--blue-dim); border: 1.5px solid var(--blue);
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'IBM Plex Mono', monospace; font-size: 12px;
+  font-weight: 700; color: var(--blue);
+}
+.view-sender-name { font-size: 12px; font-weight: 600; color: var(--text-primary); }
+.view-sender-role { font-size: 10px; color: var(--text-muted); font-family: 'IBM Plex Mono', monospace; }
+.view-to-line {
+  font-size: 11px; color: var(--text-secondary);
+  font-family: 'IBM Plex Mono', monospace;
+}
+.view-time {
+  font-size: 10px; color: var(--text-muted);
+  font-family: 'IBM Plex Mono', monospace; margin-left: auto;
+}
+.view-priority-tag {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 9px; border-radius: 10px; font-size: 10px; font-weight: 700;
+  font-family: 'IBM Plex Mono', monospace; letter-spacing: .3px;
+}
+.view-priority-tag.normal   { background: var(--green-dim); color: var(--green); border: 1px solid rgba(16,185,129,.3); }
+.view-priority-tag.penting  { background: var(--accent-dim); color: var(--accent); border: 1px solid rgba(245,158,11,.3); }
+.view-priority-tag.mendesak { background: var(--red-dim); color: var(--red); border: 1px solid rgba(239,68,68,.3); }
+
+/* View action bar */
+.view-actions {
+  display: flex; align-items: center; gap: 6px;
+}
+.va-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 5px 12px; border-radius: 6px; font-size: 11px; font-weight: 600;
+  cursor: pointer; border: 1px solid var(--border);
+  background: transparent; color: var(--text-secondary);
+  font-family: 'IBM Plex Sans', sans-serif; transition: all .12s;
+  text-decoration: none;
+}
+.va-btn:hover         { background: var(--bg-hover); color: var(--text-primary); }
+.va-btn.reply         { background: var(--accent); color: #000; border-color: var(--accent); }
+.va-btn.reply:hover   { background: var(--accent-hover); }
+.va-btn.star-on       { color: var(--accent); border-color: rgba(245,158,11,.3); background: var(--accent-dim); }
+.va-btn.danger        { color: var(--red); }
+.va-btn.danger:hover  { background: var(--red-dim); border-color: rgba(239,68,68,.3); }
+
+/* Message body area */
+.view-body { flex: 1; overflow-y: auto; padding: 24px 26px; }
+.msg-bubble {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: 10px; padding: 20px 24px;
+  line-height: 1.75; font-size: 14px; color: var(--text-primary);
+  white-space: pre-wrap; max-width: 760px;
+}
+
+/* Reply box */
+.reply-box {
+  border-top: 1px solid var(--border);
+  background: var(--bg-card);
+  padding: 14px 22px;
+}
+.reply-header {
+  font-size: 11px; font-weight: 600; color: var(--text-muted);
+  font-family: 'IBM Plex Mono', monospace; letter-spacing: 1px;
+  text-transform: uppercase; margin-bottom: 8px;
+}
+.reply-textarea {
+  width: 100%; padding: 10px 13px; min-height: 80px;
+  background: var(--bg-base); border: 1px solid var(--border);
+  border-radius: 8px; color: var(--text-primary);
+  font-size: 13px; font-family: 'IBM Plex Sans', sans-serif;
+  outline: none; resize: vertical; transition: border-color .15s;
+}
+.reply-textarea:focus { border-color: var(--accent); }
+.reply-actions {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-top: 10px;
+}
+
+/* Compose panel */
+.compose-head {
+  padding: 16px 22px; border-bottom: 1px solid var(--border);
+  background: var(--bg-card);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.compose-head-title { font-size: 15px; font-weight: 700; color: var(--text-primary); }
+.compose-body {
+  flex: 1; overflow-y: auto; padding: 20px 22px;
+  display: flex; flex-direction: column; gap: 14px;
+}
+.compose-foot {
+  padding: 14px 22px; border-top: 1px solid var(--border);
+  background: var(--bg-card); display: flex; gap: 10px;
+}
+
+/* Priority chips */
+.pchips { display: flex; gap: 7px; flex-wrap: wrap; }
+.pchip {
+  padding: 5px 13px; border-radius: 20px; font-size: 11px; font-weight: 600;
+  cursor: pointer; border: 1px solid var(--border); color: var(--text-muted);
+  font-family: 'IBM Plex Mono', monospace; transition: all .13s; background: transparent;
+}
+.pchip:hover            { border-color: var(--text-secondary); color: var(--text-secondary); }
+.pchip.sel-normal       { background: var(--green-dim); color: var(--green); border-color: rgba(16,185,129,.3); }
+.pchip.sel-penting      { background: var(--accent-dim); color: var(--accent); border-color: rgba(245,158,11,.3); }
+.pchip.sel-mendesak     { background: var(--red-dim); color: var(--red); border-color: rgba(239,68,68,.3); }
+
+/* Toast */
+.msg-toast {
+  position: fixed; bottom: 22px; right: 22px;
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: 10px; padding: 12px 18px;
+  font-size: 13px; color: var(--text-primary);
+  box-shadow: 0 4px 20px rgba(0,0,0,.3);
+  display: flex; align-items: center; gap: 9px;
+  transform: translateY(80px); opacity: 0;
+  transition: all .3s cubic-bezier(.34,1.56,.64,1);
+  z-index: 9999; pointer-events: none;
+}
+.msg-toast.show    { transform: translateY(0); opacity: 1; }
+.msg-toast.success { border-color: rgba(16,185,129,.35); }
+.msg-toast.error   { border-color: rgba(239,68,68,.35); }
+
+@media (max-width: 860px) {
+  .msg-layout { grid-template-columns: 1fr; height: auto; min-height: 0; }
+  .msg-panel-left { height: 45vh; }
+  .msg-panel-right { min-height: 50vh; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-4" style="flex-wrap:wrap;gap:10px;">
+  <div>
+    <div class="page-title">✉ Kotak Pesan</div>
+    <div class="page-desc">
+      {% if unread_total > 0 %}
+        <span style="color:var(--red);font-weight:600;">{{ unread_total }} pesan belum dibaca</span>
+      {% else %}Semua pesan sudah dibaca{% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="msg-layout">
+
+  {# LEFT PANEL - Message List #}
+  <div class="msg-panel-left">
+    <div class="msg-panel-head">
+      <div class="msg-panel-head-title">Pesan</div>
+      {% if unread_total > 0 %}
+      <span class="msg-unread-pill">{{ unread_total }}</span>
+      {% endif %}
+    </div>
+
+    <div class="msg-tabs">
+      <a class="msg-tab {% if tab in ['inbox','view'] %}active{% endif %}" href="/pesan?tab=inbox">
+        Masuk
+        {% if unread_total > 0 %}<span class="tab-count">{{ unread_total if unread_total < 10 else '9+' }}</span>{% endif %}
+      </a>
+      <a class="msg-tab {% if tab=='sent' %}active{% endif %}" href="/pesan?tab=sent">Terkirim</a>
+      <a class="msg-tab {% if tab=='starred' %}active{% endif %}" href="/pesan?tab=starred">★</a>
+    </div>
+
+    <button class="compose-trigger" id="openCompose">✏ Tulis Pesan Baru</button>
+
+    <div class="msg-search">
+      <input type="text" id="searchInput" placeholder="Cari pesan…">
+    </div>
+
+    <div class="conv-list" id="convList">
+      {% set av_classes = ['av-yellow','av-green','av-blue','av-red'] %}
+      {% if conversations %}
+        {% for m in conversations %}
+        {% set is_active = (msg is defined and msg and msg._id == m._id) %}
+        <a class="conv-item {% if is_active %}active{% elif not m.is_read and tab != 'sent' %}unread{% endif %}"
+           href="/pesan/{{ m._id }}"
+           data-search="{{ (m.from_nama if tab != 'sent' else m.to_nama)|lower }} {{ (m.subject or '')|lower }}">
+
+          {% if m.get('priority') in ['penting','mendesak'] %}
+          <div class="priority-pip {{ m.priority }}"></div>
+          {% endif %}
+
+          <div class="conv-av {{ av_classes[loop.index0 % 4] }}">
+            {{ ((m.other_user.nama if m.other_user else m.from_nama) or '?')[0]|upper }}
+          </div>
+
+          <div class="conv-body">
+            <div class="conv-name">
+              {% if tab == 'sent' %}→ {{ m.to_nama }}{% else %}{{ m.from_nama }}{% endif %}
+            </div>
+            <div class="conv-subj">{{ m.subject or '(Tanpa Judul)' }}</div>
+            <div class="conv-prev">{{ m.preview or '—' }}</div>
+          </div>
+          <div class="conv-meta">
+            <span class="conv-time">{{ m.time_fmt }}</span>
+          </div>
+        </a>
+        {% endfor %}
+      {% else %}
+        <div class="conv-empty">
+          <div class="ei">📭</div>
+          <div>Tidak ada pesan di sini</div>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  {# RIGHT PANEL #}
+  <div class="msg-panel-right">
+
+    {# STATE 1: Empty #}
+    <div class="rp-state {% if not msg and tab not in ['compose'] %}visible{% endif %}" id="rpEmpty">
+      <div class="msg-empty-state">
+        <div class="ei">✉</div>
+        <p>Pilih pesan di sebelah kiri untuk membacanya, atau tulis pesan baru.</p>
+        <button class="compose-trigger" style="margin:16px auto 0;" onclick="showCompose()">
+          ✏ Tulis Pesan
+        </button>
+      </div>
+    </div>
+
+    {# STATE 2: View Message #}
+    <div class="rp-state {% if msg %}visible{% endif %}" id="rpView">
+      {% if msg %}
+      {% set pri = msg.get('priority','normal') %}
+
+      <div class="view-header">
+        <div class="view-subject-row">
+          <div class="view-subject">{{ msg.subject or '(Tanpa Judul)' }}</div>
+          <div class="view-actions">
+            {% if msg.from_id != session.user_id %}
+            <button class="va-btn reply" id="replyToggleBtn" onclick="toggleReply()">↩ Balas</button>
+            {% endif %}
+
+            <button class="va-btn {% if session.user_id in (msg.starred_by or []) %}star-on{% endif %}"
+                    id="starBtn" onclick="doAction('star','{{ msg._id }}')">
+              {% if session.user_id in (msg.starred_by or []) %}★{% else %}☆{% endif %} Bintang
+            </button>
+
+            <button class="va-btn danger" onclick="doAction('delete','{{ msg._id }}')">🗑 Hapus</button>
+          </div>
+        </div>
+
+        <div class="view-meta-row">
+          <div class="view-sender">
+            <div class="view-sender-av">
+              {{ (msg.from_nama or '?')[0]|upper }}
+            </div>
+            <div>
+              <div class="view-sender-name">{{ msg.from_nama or '?' }}</div>
+              <div class="view-sender-role">
+                {% if sender %}
+                  {{ role_label.get(sender.get('role') or sender.get('jabatan',''), '') }}
+                {% endif %}
+              </div>
+            </div>
+          </div>
+
+          <div class="view-to-line">→ {{ msg.to_nama or '?' }}</div>
+
+          <span class="view-priority-tag {{ pri }}">
+            {% if pri == 'mendesak' %}🔴 MENDESAK
+            {% elif pri == 'penting' %}⚠ PENTING
+            {% else %}● NORMAL{% endif %}
+          </span>
+
+          <div class="view-time">{{ msg.time_fmt or '—' }}</div>
+        </div>
+      </div>
+
+      <div class="view-body">
+        <div class="msg-bubble">{{ msg.body or '' }}</div>
+      </div>
+
+      <div class="reply-box" id="replyBox" style="display:none;">
+        <div class="reply-header">↩ Balas ke {{ msg.from_nama }}</div>
+        <textarea class="reply-textarea" id="replyText" placeholder="Tulis balasan…"></textarea>
+        <div class="reply-actions">
+          <div class="pchips" id="replyPchips">
+            <button class="pchip sel-normal" data-p="normal">Normal</button>
+            <button class="pchip" data-p="penting">⚠ Penting</button>
+            <button class="pchip" data-p="mendesak">🔴 Mendesak</button>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button class="va-btn" onclick="toggleReply()">Batal</button>
+            <button class="va-btn reply" id="sendReplyBtn" onclick="sendReply('{{ msg.from_id }}','{{ msg.subject or '' }}')">
+              📤 Kirim
+            </button>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+
+    {# STATE 3: Compose #}
+    <div class="rp-state" id="rpCompose">
+      <div class="compose-head">
+        <div class="compose-head-title">✏ Tulis Pesan Baru</div>
+        <button class="va-btn" onclick="hideCompose()">✕ Batal</button>
+      </div>
+      <div class="compose-body">
+        <div class="form-group">
+          <label>Kepada <span style="color:var(--red)">*</span></label>
+          <select id="toSelect" style="width:100%;">
+            <option value="">— Pilih penerima —</option>
+            {% for u in all_users %}
+            <option value="{{ u._id }}" {% if request.args.get('to_id') == u._id|string %}selected{% endif %}>
+              {{ u.nama }} — {{ role_label.get(u.role or u.jabatan, u.role or u.jabatan or '') }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Subjek</label>
+          <input type="text" id="subjectInput" placeholder="Judul pesan…" maxlength="200">
+        </div>
+        <div class="form-group">
+          <label>Isi Pesan <span style="color:var(--red)">*</span></label>
+          <textarea id="bodyInput" placeholder="Tulis pesan di sini…" style="min-height:160px;"></textarea>
+        </div>
+        <div class="form-group">
+          <label>Prioritas</label>
+          <div class="pchips" id="composePchips">
+            <button class="pchip sel-normal" data-p="normal">Normal</button>
+            <button class="pchip" data-p="penting">⚠ Penting</button>
+            <button class="pchip" data-p="mendesak">🔴 Mendesak</button>
+          </div>
+        </div>
+      </div>
+      <div class="compose-foot">
+        <button class="btn btn-primary" id="sendBtn">📤 Kirim Pesan</button>
+        <button class="btn btn-ghost" onclick="hideCompose()">Batal</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="msg-toast" id="toast"></div>
+{% endblock %}
+
+{% block extra_script %}
+<script>
+// ============================================================
+// PANEL STATE MANAGEMENT
+// ============================================================
+function showState(id) {
+  const states = ['rpEmpty', 'rpView', 'rpCompose'];
+  states.forEach(s => {
+    const el = document.getElementById(s);
+    if (el) el.classList.toggle('visible', el.id === id);
+  });
+}
+
+function showCompose() { 
+  showState('rpCompose');
+  document.getElementById('toSelect').value = '';
+  document.getElementById('subjectInput').value = '';
+  document.getElementById('bodyInput').value = '';
+  composePriority = 'normal';
+  document.querySelectorAll('#composePchips .pchip').forEach(c => c.className = 'pchip');
+  document.querySelector('#composePchips .pchip[data-p="normal"]').classList.add('sel-normal');
+}
+
+function hideCompose() {
+  const hasMsg = {{ 'true' if msg else 'false' }};
+  showState(hasMsg ? 'rpView' : 'rpEmpty');
+}
+
+document.getElementById('openCompose').addEventListener('click', showCompose);
+
+// Auto-open compose if ?compose=1
+if (new URLSearchParams(location.search).get('compose') === '1') showCompose();
+
+// ============================================================
+// SEARCH FILTER
+// ============================================================
+document.getElementById('searchInput').addEventListener('input', function(e) {
+  const q = e.target.value.toLowerCase();
+  document.querySelectorAll('.conv-item').forEach(el => {
+    const s = el.dataset.search || '';
+    el.style.display = s.includes(q) ? '' : 'none';
+  });
+});
+
+// ============================================================
+// TOAST NOTIFICATION
+// ============================================================
+function showToast(msg, type = 'success') {
+  const toast = document.getElementById('toast');
+  toast.textContent = (type === 'success' ? '✓ ' : '✕ ') + msg;
+  toast.className = 'msg-toast show ' + type;
+  setTimeout(() => toast.classList.remove('show'), 3000);
+}
+
+// ============================================================
+// PRIORITY CHIPS FOR COMPOSE
+// ============================================================
+let composePriority = 'normal';
+document.querySelectorAll('#composePchips .pchip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    composePriority = chip.dataset.p;
+    document.querySelectorAll('#composePchips .pchip').forEach(c => c.className = 'pchip');
+    chip.classList.add('sel-' + composePriority);
+  });
+});
+
+// ============================================================
+// SEND NEW MESSAGE
+// ============================================================
+document.getElementById('sendBtn').addEventListener('click', () => {
+  const to = document.getElementById('toSelect').value;
+  const subject = document.getElementById('subjectInput').value.trim();
+  const body = document.getElementById('bodyInput').value.trim();
+
+  if (!to) { showToast('Pilih penerima terlebih dahulu', 'error'); return; }
+  if (!body) { showToast('Isi pesan tidak boleh kosong', 'error'); return; }
+
+  const btn = document.getElementById('sendBtn');
+  btn.disabled = true;
+  btn.textContent = '…Mengirim';
+
+  fetch('/pesan/kirim', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      to_id: to,
+      subject: subject || '(Tanpa Judul)',
+      body: body,
+      priority: composePriority
+    })
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.ok) {
+      showToast('Pesan berhasil dikirim!');
+      setTimeout(() => {
+        window.location.href = '/pesan?tab=sent';
+      }, 800);
+    } else {
+      showToast(data.msg || 'Gagal mengirim', 'error');
+    }
+  })
+  .catch(() => showToast('Terjadi kesalahan jaringan', 'error'))
+  .finally(() => {
+    btn.disabled = false;
+    btn.textContent = '📤 Kirim Pesan';
+  });
+});
+
+// ============================================================
+// REPLY FUNCTIONALITY
+// ============================================================
+let replyPriority = 'normal';
+
+function toggleReply() {
+  const box = document.getElementById('replyBox');
+  const isVisible = box.style.display !== 'none';
+  box.style.display = isVisible ? 'none' : 'block';
+  if (!isVisible) {
+    document.getElementById('replyText').focus();
+  }
+}
+
+document.querySelectorAll('#replyPchips .pchip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    replyPriority = chip.dataset.p;
+    document.querySelectorAll('#replyPchips .pchip').forEach(c => c.className = 'pchip');
+    chip.classList.add('sel-' + replyPriority);
+  });
+});
+
+function sendReply(toId, origSubject) {
+  const body = document.getElementById('replyText').value.trim();
+  if (!body) {
+    showToast('Isi balasan tidak boleh kosong', 'error');
+    return;
+  }
+
+  const btn = document.getElementById('sendReplyBtn');
+  btn.disabled = true;
+  btn.textContent = '…';
+
+  const subject = origSubject.startsWith('Re:') ? origSubject : 'Re: ' + origSubject;
+
+  fetch('/pesan/kirim', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      to_id: toId,
+      subject: subject,
+      body: body,
+      priority: replyPriority
+    })
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.ok) {
+      showToast('Balasan terkirim!');
+      document.getElementById('replyText').value = '';
+      document.getElementById('replyBox').style.display = 'none';
+    } else {
+      showToast(data.msg || 'Gagal mengirim', 'error');
+    }
+  })
+  .catch(() => showToast('Kesalahan jaringan', 'error'))
+  .finally(() => {
+    btn.disabled = false;
+    btn.textContent = '📤 Kirim';
+  });
+}
+
+// ============================================================
+// SINGLE ACTION HANDLER (star, delete)
+// SATU FUNCTION untuk SEMUA operasi - EFISIEN!
+// ============================================================
+function doAction(action, msgId) {
+  if (action === 'delete' && !confirm('Hapus pesan ini?')) return;
+
+  fetch('/pesan/action', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: action, msg_id: msgId })
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (!data.ok) {
+      showToast(data.msg || 'Gagal', 'error');
+      return;
+    }
+
+    if (action === 'delete') {
+      showToast('Pesan dihapus.');
+      setTimeout(() => {
+        window.location.href = '/pesan';
+      }, 700);
+    } 
+    else if (action === 'star') {
+      const btn = document.getElementById('starBtn');
+      if (data.starred) {
+        btn.classList.add('star-on');
+        btn.innerHTML = '★ Bintang';
+        showToast('Ditandai bintang');
+      } else {
+        btn.classList.remove('star-on');
+        btn.innerHTML = '☆ Bintang';
+        showToast('Bintang dilepas');
+      }
+    }
+  })
+  .catch(() => showToast('Kesalahan jaringan', 'error'));
+}
+</script>
+{% endblock %}

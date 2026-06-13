@@ -1,0 +1,382 @@
+{% extends "base.html" %}
+
+{% block title %}Excel Viewer - {{ filename }}{% endblock %}
+{% block page_title %}Excel Viewer - {{ filename }}{% endblock %}
+{% block breadcrumb %}KPI / Excel Viewer{% endblock %}
+
+{% block extra_style %}
+<style>
+  .excel-toolbar {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+    padding: 16px 20px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+  }
+  
+  .sheet-tabs {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 20px;
+    padding-bottom: 8px;
+  }
+  
+  .sheet-tab {
+    padding: 8px 20px;
+    background: var(--bg-hover);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+    cursor: pointer;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    transition: all 0.15s;
+  }
+  
+  .sheet-tab:hover {
+    background: var(--accent-dim);
+    color: var(--accent);
+  }
+  
+  .sheet-tab.active {
+    background: var(--accent);
+    color: #000;
+    border-color: var(--accent);
+    font-weight: 600;
+  }
+  
+  .excel-table-container {
+    overflow-x: auto;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    margin-bottom: 20px;
+  }
+  
+  .excel-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+  
+  .excel-table th,
+  .excel-table td {
+    border: 1px solid var(--border);
+    padding: 8px 12px;
+    text-align: left;
+    vertical-align: top;
+  }
+  
+  .excel-table th {
+    background: var(--bg-hover);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    position: sticky;
+    top: 0;
+  }
+  
+  .excel-table tr:hover td {
+    background: var(--bg-hover);
+  }
+  
+  .excel-table .row-number {
+    background: var(--bg-hover);
+    color: var(--text-muted);
+    text-align: center;
+    width: 40px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+  }
+  
+  .info-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  
+  .info-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    background: var(--accent-dim);
+    border-radius: 20px;
+    font-size: 11px;
+    font-family: var(--font-mono);
+  }
+  
+  .btn-excel {
+    background: var(--green-dim);
+    color: var(--green);
+    border: 1px solid rgba(16,185,129,.3);
+  }
+  
+  .btn-excel:hover {
+    background: var(--green);
+    color: #000;
+  }
+  
+  .search-bar {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  
+  .search-bar input {
+    width: 250px;
+    padding: 6px 12px;
+    font-size: 12px;
+  }
+  
+  .pagination {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    justify-content: center;
+    margin-top: 20px;
+  }
+  
+  .page-btn {
+    padding: 6px 12px;
+    background: var(--bg-hover);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.15s;
+  }
+  
+  .page-btn:hover {
+    background: var(--accent-dim);
+    color: var(--accent);
+  }
+  
+  .page-btn.active {
+    background: var(--accent);
+    color: #000;
+    border-color: var(--accent);
+  }
+  
+  .page-btn.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  
+  @media (max-width: 768px) {
+    .excel-table th,
+    .excel-table td {
+      padding: 6px 8px;
+      font-size: 10px;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-4" style="flex-wrap:wrap;gap:10px;">
+  <div>
+    <div class="page-title">📊 Excel Viewer — {{ filename }}</div>
+    <div class="page-desc">Lihat dan eksplorasi data Excel secara realtime</div>
+  </div>
+  <div class="flex gap-2">
+    <a href="{{ url_for('kpi_upload') }}" class="btn btn-ghost btn-sm">← Kembali ke Upload</a>
+    <a href="{{ url_for('kpi') }}?wok={{ wok }}&month={{ month }}&year={{ year }}" class="btn btn-primary btn-sm">
+      📈 Buka KPI Dashboard
+    </a>
+  </div>
+</div>
+
+<div class="info-bar">
+  <div class="flex gap-3">
+    <span class="info-badge">📁 File: {{ filename }}</span>
+    <span class="info-badge">📅 Periode: {{ bulan_label }} {{ year }}</span>
+    <span class="info-badge">📍 WOK: {{ wok }}</span>
+    <span class="info-badge">📊 {{ total_rows }} baris data</span>
+  </div>
+  <div class="search-bar">
+    <input type="text" id="searchInput" placeholder="🔍 Cari data..." class="form-control">
+    <button class="btn btn-ghost btn-sm" onclick="clearSearch()">Clear</button>
+  </div>
+</div>
+
+<div class="sheet-tabs" id="sheetTabs">
+  {% for sheet_name in sheet_names %}
+  <div class="sheet-tab {% if loop.first %}active{% endif %}" data-sheet="{{ sheet_name }}">
+    📄 {{ sheet_name }}
+  </div>
+  {% endfor %}
+</div>
+
+<div class="excel-table-container" id="tableContainer">
+  <div class="text-center" style="padding: 40px;">
+    <div class="dp-spin" style="margin: 0 auto 16px;"></div>
+    <div>Memuat data...</div>
+  </div>
+</div>
+
+<div class="pagination" id="pagination"></div>
+
+<script>
+let currentSheet = '{{ sheet_names[0] if sheet_names else "" }}';
+let currentPage = 1;
+let currentData = null;
+let searchQuery = '';
+const rowsPerPage = 50;
+
+// Ambil data dari server
+async function loadSheetData(sheetName, page = 1, search = '') {
+  currentPage = page;
+  searchQuery = search;
+  
+  const container = document.getElementById('tableContainer');
+  container.innerHTML = '<div class="text-center" style="padding: 40px;"><div class="dp-spin" style="margin: 0 auto 16px;"></div><div>Memuat data...</div></div>';
+  
+  try {
+    let url = `/api/excel/data?sheet=${encodeURIComponent(sheetName)}&page=${page}&rows=${rowsPerPage}`;
+    if (search) {
+      url += `&search=${encodeURIComponent(search)}`;
+    }
+    
+    const response = await fetch(url);
+    const data = await response.json();
+    
+    if (data.success) {
+      currentData = data;
+      renderTable(data);
+      renderPagination(data);
+    } else {
+      container.innerHTML = `<div class="text-center" style="padding: 40px; color: var(--red);">❌ ${data.message || 'Gagal memuat data'}</div>`;
+    }
+  } catch (error) {
+    container.innerHTML = `<div class="text-center" style="padding: 40px; color: var(--red);">❌ Error: ${error.message}</div>`;
+  }
+}
+
+function renderTable(data) {
+  const container = document.getElementById('tableContainer');
+  
+  if (!data.headers || data.headers.length === 0) {
+    container.innerHTML = '<div class="text-center" style="padding: 40px;">📭 Tidak ada data untuk ditampilkan</div>';
+    return;
+  }
+  
+  let html = '<table class="excel-table"><thead><tr><th class="row-number">#</th>';
+  
+  // Render headers
+  data.headers.forEach(header => {
+    html += `<th>${escapeHtml(header)}</th>`;
+  });
+  html += '</tr></thead><tbody>';
+  
+  // Render rows
+  const startRow = (data.page - 1) * data.rowsPerPage + 1;
+  data.rows.forEach((row, idx) => {
+    html += '<tr>';
+    html += `<td class="row-number">${startRow + idx}</td>`;
+    row.forEach(cell => {
+      html += `<td>${escapeHtml(String(cell || '-'))}</td>`;
+    });
+    html += '</tr>';
+  });
+  
+  html += '</tbody></table>';
+  container.innerHTML = html;
+}
+
+function renderPagination(data) {
+  const pagination = document.getElementById('pagination');
+  if (data.totalPages <= 1) {
+    pagination.innerHTML = '';
+    return;
+  }
+  
+  let html = '';
+  
+  // Previous button
+  html += `<button class="page-btn ${data.page === 1 ? 'disabled' : ''}" 
+           onclick="goToPage(${data.page - 1})" ${data.page === 1 ? 'disabled' : ''}>← Sebelumnya</button>`;
+  
+  // Page numbers
+  const startPage = Math.max(1, data.page - 2);
+  const endPage = Math.min(data.totalPages, data.page + 2);
+  
+  if (startPage > 1) {
+    html += `<button class="page-btn" onclick="goToPage(1)">1</button>`;
+    if (startPage > 2) html += '<span style="padding:0 4px;">...</span>';
+  }
+  
+  for (let i = startPage; i <= endPage; i++) {
+    html += `<button class="page-btn ${i === data.page ? 'active' : ''}" onclick="goToPage(${i})">${i}</button>`;
+  }
+  
+  if (endPage < data.totalPages) {
+    if (endPage < data.totalPages - 1) html += '<span style="padding:0 4px;">...</span>';
+    html += `<button class="page-btn" onclick="goToPage(${data.totalPages})">${data.totalPages}</button>`;
+  }
+  
+  // Next button
+  html += `<button class="page-btn ${data.page === data.totalPages ? 'disabled' : ''}" 
+           onclick="goToPage(${data.page + 1})" ${data.page === data.totalPages ? 'disabled' : ''}>Selanjutnya →</button>`;
+  
+  // Info
+  html += `<span style="margin-left: 16px; font-size: 12px; color: var(--text-muted);">
+    Menampilkan ${data.startRow + 1}-${Math.min(data.endRow, data.totalRows)} dari ${data.totalRows} baris
+  </span>`;
+  
+  pagination.innerHTML = html;
+}
+
+function goToPage(page) {
+  if (page < 1 || (currentData && page > currentData.totalPages)) return;
+  loadSheetData(currentSheet, page, searchQuery);
+}
+
+function clearSearch() {
+  document.getElementById('searchInput').value = '';
+  loadSheetData(currentSheet, 1, '');
+}
+
+// Sheet tab switching
+document.querySelectorAll('.sheet-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.sheet-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    currentSheet = tab.dataset.sheet;
+    loadSheetData(currentSheet, 1, '');
+  });
+});
+
+// Search with debounce
+let searchTimeout;
+document.getElementById('searchInput').addEventListener('input', (e) => {
+  clearTimeout(searchTimeout);
+  searchTimeout = setTimeout(() => {
+    loadSheetData(currentSheet, 1, e.target.value);
+  }, 500);
+});
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+// Load initial data
+loadSheetData(currentSheet, 1, '');
+</script>
+{% endblock %}

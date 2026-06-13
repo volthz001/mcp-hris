@@ -1,0 +1,300 @@
+{% extends "base.html" %}
+{% block title %}Kasbon{% endblock %}
+{% block page_title %}Kasbon{% endblock %}
+{% block breadcrumb %}Transaksi / Kasbon{% endblock %}
+
+{% block extra_style %}
+<style>
+  .kb-stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .kb-stat {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 18px;
+    position: relative; overflow: hidden;
+  }
+  .kb-stat::before { content:''; position:absolute; top:0;left:0;right:0; height:2px; }
+  .kb-stat.amber::before { background:var(--accent); }
+  .kb-stat.green::before { background:var(--green); }
+  .kb-stat.red::before   { background:var(--red); }
+  .kb-stat.blue::before  { background:var(--blue); }
+  .kb-stat-label { font-size:10px; color:var(--text-muted); font-family:var(--font-mono); letter-spacing:1px; text-transform:uppercase; }
+  .kb-stat-value { font-size:22px; font-weight:700; margin-top:4px; letter-spacing:-.5px; }
+  .kb-stat.amber .kb-stat-value { color:var(--accent); }
+  .kb-stat.green .kb-stat-value { color:var(--green); }
+  .kb-stat.red   .kb-stat-value { color:var(--red); }
+  .kb-stat.blue  .kb-stat-value { color:var(--blue); }
+  .kb-stat-sub { font-size:11px; color:var(--text-muted); margin-top:2px; }
+
+  /* restrict banner */
+  .restrict-banner {
+    background: var(--blue-dim);
+    border: 1px solid rgba(59,130,246,.25);
+    border-left: 3px solid var(--blue);
+    border-radius: var(--radius);
+    padding: 12px 18px;
+    font-size:13px; color: var(--blue);
+    margin-bottom: 18px;
+    display: flex; align-items:center; gap:10px;
+  }
+
+  /* filter bar */
+  .filter-inline { display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap; }
+  .filter-inline select, .filter-inline input { width:auto; min-width:130px; }
+
+  /* nominal */
+  .nominal { font-family:var(--font-mono); font-weight:600; }
+  .nominal-big { font-size:20px; font-weight:700; color:var(--green); font-family:var(--font-mono); }
+</style>
+{% endblock %}
+
+{% block content %}
+
+{% if is_admin %}
+{# ════════════════════════════════════════════════════════════
+   VIEW ADMIN — VP / GML: lihat semua kasbon
+   ════════════════════════════════════════════════════════════ #}
+
+<div class="flex items-center justify-between mb-4" style="flex-wrap:wrap;gap:10px;">
+  <div>
+    <div class="page-title">Manajemen Kasbon</div>
+    <div class="page-desc">Seluruh pengajuan kasbon dari semua pengguna</div>
+  </div>
+  <div class="flex gap-2">
+    <a href="{{ url_for('kasbon_tambah') }}" class="btn btn-primary btn-sm">+ Ajukan Kasbon</a>
+  </div>
+</div>
+
+{# Stat Cards Admin #}
+<div class="kb-stat-grid">
+  <div class="kb-stat amber">
+    <div class="kb-stat-label">Pending</div>
+    <div class="kb-stat-value">{{ total_pending }}</div>
+    <div class="kb-stat-sub">Menunggu persetujuan</div>
+  </div>
+  <div class="kb-stat green">
+    <div class="kb-stat-label">Disetujui</div>
+    <div class="kb-stat-value">{{ total_approved }}</div>
+    <div class="kb-stat-sub">Sudah diproses</div>
+  </div>
+  <div class="kb-stat red">
+    <div class="kb-stat-label">Ditolak</div>
+    <div class="kb-stat-value">{{ total_rejected }}</div>
+    <div class="kb-stat-sub">Tidak disetujui</div>
+  </div>
+  <div class="kb-stat blue">
+    <div class="kb-stat-label">Total Cair</div>
+    <div class="kb-stat-value" style="font-size:16px;">Rp {{ "{:,.0f}".format(total_nominal) }}</div>
+    <div class="kb-stat-sub">Nominal approved</div>
+  </div>
+</div>
+
+{# Filter #}
+<div class="filter-bar mb-4">
+  <form method="get" action="{{ url_for('kasbon_list') }}" class="filter-inline">
+    <div class="filter-group">
+      <label>Status</label>
+      <select name="status">
+        <option value="">Semua Status</option>
+        <option value="pending"  {% if status_filter=='pending'  %}selected{% endif %}>Pending</option>
+        <option value="approved" {% if status_filter=='approved' %}selected{% endif %}>Disetujui</option>
+        <option value="rejected" {% if status_filter=='rejected' %}selected{% endif %}>Ditolak</option>
+      </select>
+    </div>
+    <button type="submit" class="btn btn-ghost btn-sm">Filter</button>
+    {% if status_filter %}
+    <a href="{{ url_for('kasbon_list') }}" class="btn btn-ghost btn-sm">Reset</a>
+    {% endif %}
+  </form>
+</div>
+
+{# Tabel Semua Kasbon #}
+<div class="card">
+  <div class="card-header">
+    <div>
+      <div class="card-title">Daftar Kasbon</div>
+      <div class="card-subtitle">{{ items|length }} record ditampilkan</div>
+    </div>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Nama</th>
+          <th>Nominal</th>
+          <th>Keterangan</th>
+          <th>Status</th>
+          <th>Diajukan</th>
+          <th>Diproses Oleh</th>
+          <th>Aksi</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in items %}
+        <tr>
+          <td>
+            <div style="font-weight:600;">{{ item.nama }}</div>
+            <div style="font-size:11px;color:var(--text-muted);">{{ item.get('bulan','') }}/{{ item.get('tahun','') }}</div>
+          </td>
+          <td class="nominal">Rp {{ "{:,.0f}".format(item.nominal or 0) }}</td>
+          <td class="muted" style="max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+            {{ item.keterangan or '—' }}
+          </td>
+          <td>
+            {% if item.status == 'pending' %}
+            <span class="badge badge-pending">PENDING</span>
+            {% elif item.status == 'approved' %}
+            <span class="badge badge-approved">DISETUJUI</span>
+            {% else %}
+            <span class="badge badge-rejected">DITOLAK</span>
+            {% endif %}
+          </td>
+          <td class="muted text-sm">
+            {{ item.created_at.strftime('%d %b %Y') if item.created_at else '—' }}
+          </td>
+          <td class="muted text-sm">
+            {% if item.approved_by %}
+            {{ item.approved_by }}<br>
+            <span style="font-size:10px;">{{ item.approved_at.strftime('%d %b %Y %H:%M') if item.approved_at else '' }}</span>
+            {% else %}—{% endif %}
+          </td>
+          <td>
+            {% if item.status == 'pending' %}
+            <div style="display:flex;gap:6px;">
+              <form method="post" action="{{ url_for('kasbon_approve', kasbon_id=item._id) }}" style="display:inline;">
+                <input type="hidden" name="action" value="approve">
+                <button type="submit" class="btn btn-green btn-sm"
+                  onclick="return confirm('Setujui kasbon ini?')">✓ Setuju</button>
+              </form>
+              <form method="post" action="{{ url_for('kasbon_approve', kasbon_id=item._id) }}" style="display:inline;">
+                <input type="hidden" name="action" value="reject">
+                <button type="submit" class="btn btn-red btn-sm"
+                  onclick="return confirm('Tolak kasbon ini?')">✗ Tolak</button>
+              </form>
+            </div>
+            {% else %}
+            <span style="font-size:11px;color:var(--text-muted);">Sudah diproses</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="7" style="text-align:center;padding:32px;color:var(--text-muted);">
+            Tidak ada data kasbon
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% else %}
+{# ════════════════════════════════════════════════════════════
+   VIEW USER BIASA — hanya lihat milik sendiri
+   ════════════════════════════════════════════════════════════ #}
+
+<div class="flex items-center justify-between mb-4" style="flex-wrap:wrap;gap:10px;">
+  <div>
+    <div class="page-title">Kasbon Saya</div>
+    <div class="page-desc">Riwayat dan status pengajuan kasbon Anda</div>
+  </div>
+  <a href="{{ url_for('kasbon_tambah') }}" class="btn btn-primary btn-sm">+ Ajukan Kasbon</a>
+</div>
+
+{# Restrict notice #}
+<div class="restrict-banner">
+  ℹ️ Anda hanya dapat melihat kasbon yang Anda ajukan sendiri.
+  Untuk melihat data keseluruhan, hubungi VP atau GML.
+</div>
+
+{# Stat ringkasan milik sendiri #}
+<div class="kb-stat-grid" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr));">
+  <div class="kb-stat blue">
+    <div class="kb-stat-label">Total Pengajuan</div>
+    <div class="kb-stat-value">{{ total_saya }}</div>
+    <div class="kb-stat-sub">Sepanjang waktu</div>
+  </div>
+  <div class="kb-stat amber">
+    <div class="kb-stat-label">Pending</div>
+    <div class="kb-stat-value">{{ pending_saya }}</div>
+    <div class="kb-stat-sub">Menunggu keputusan</div>
+  </div>
+  <div class="kb-stat green">
+    <div class="kb-stat-label">Disetujui</div>
+    <div class="kb-stat-value">{{ approved_saya }}</div>
+    <div class="kb-stat-sub">Sudah dicairkan</div>
+  </div>
+  <div class="kb-stat green">
+    <div class="kb-stat-label">Total Dicairkan</div>
+    <div class="kb-stat-value" style="font-size:16px;">Rp {{ "{:,.0f}".format(total_nominal) }}</div>
+    <div class="kb-stat-sub">Nominal approved</div>
+  </div>
+</div>
+
+{# Riwayat kasbon sendiri #}
+<div class="card">
+  <div class="card-header">
+    <div>
+      <div class="card-title">Riwayat Pengajuan</div>
+      <div class="card-subtitle">{{ items|length }} pengajuan tercatat</div>
+    </div>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Nominal</th>
+          <th>Keterangan</th>
+          <th>Status</th>
+          <th>Diajukan</th>
+          <th>Diproses Oleh</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in items %}
+        <tr>
+          <td class="nominal">Rp {{ "{:,.0f}".format(item.nominal or 0) }}</td>
+          <td class="muted">{{ item.keterangan or '—' }}</td>
+          <td>
+            {% if item.status == 'pending' %}
+            <span class="badge badge-pending">PENDING</span>
+            {% elif item.status == 'approved' %}
+            <span class="badge badge-approved">DISETUJUI</span>
+            {% else %}
+            <span class="badge badge-rejected">DITOLAK</span>
+            {% endif %}
+          </td>
+          <td class="muted text-sm">
+            {{ item.created_at.strftime('%d %b %Y %H:%M') if item.created_at else '—' }}
+          </td>
+          <td class="muted text-sm">
+            {% if item.approved_by %}
+            {{ item.approved_by }}
+            <br><span style="font-size:10px;color:var(--text-muted);">
+              {{ item.approved_at.strftime('%d %b %Y') if item.approved_at else '' }}
+            </span>
+            {% elif item.status == 'pending' %}
+            <span style="color:var(--accent);font-size:11px;">⏳ Menunggu</span>
+            {% else %}—{% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="5" style="text-align:center;padding:32px;color:var(--text-muted);">
+            Belum ada pengajuan kasbon. <a href="{{ url_for('kasbon_tambah') }}" style="color:var(--accent);">Ajukan sekarang →</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endif %}
+{% endblock %}

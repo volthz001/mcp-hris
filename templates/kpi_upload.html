@@ -1,0 +1,255 @@
+{% extends "base.html" %}
+{% block title %}Upload Data KPI{% endblock %}
+{% block page_title %}Upload Data KPI{% endblock %}
+{% block breadcrumb %}KPI / Upload{% endblock %}
+
+{% block extra_style %}
+<style>
+  .upload-zone { border: 2px dashed var(--border); border-radius: var(--radius-md); padding: 40px 24px; text-align: center; cursor: pointer; background: var(--bg-card); }
+  .upload-zone:hover, .upload-zone.dragover { border-color: var(--accent); background: var(--accent-dim); }
+  .progress-container { margin-top: 20px; background: var(--bg-hover); border-radius: 20px; overflow: hidden; display: none; }
+  .progress-bar { width: 0%; height: 8px; background: var(--accent); transition: width 0.3s; }
+  .progress-text { font-family: var(--font-mono); font-size: 11px; margin-top: 6px; }
+  .result-card { background: var(--green-dim); border-left: 3px solid var(--green); padding: 16px 20px; margin-bottom: 18px; }
+  .result-grid { display: flex; gap: 20px; flex-wrap: wrap; }
+  .result-stat .rs-val { font-size: 28px; font-weight: 700; color: var(--green); }
+  .history-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .history-table th, .history-table td { border: 1px solid var(--border); padding: 8px 12px; }
+  .sheet-badge { background: var(--accent-dim); color: var(--accent); padding: 2px 8px; border-radius: 4px; font-size: 10px; margin-right: 4px; display: inline-block; }
+  .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="alertContainer"></div>
+<div class="flex items-center justify-between mb-4">
+  <div><div class="page-title">⬆ Upload Data KPI</div><div class="page-desc">Upload file Excel (PS, DJP Approve, Database)</div></div>
+  <a href="{{ url_for('kpi') }}" class="btn btn-ghost btn-sm">← Dashboard</a>
+</div>
+
+<div id="resultContainer" style="display:none;"></div>
+
+<div class="card mb-6">
+  <form id="uploadForm" enctype="multipart/form-data">
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:20px;">
+      <div class="form-group"><label>Bulan</label><select name="month" id="uploadMonth">{% for num, nama in months_list %}<option value="{{ num }}" {% if num == month %}selected{% endif %}>{{ nama }}</option>{% endfor %}</select></div>
+      <div class="form-group"><label>Tahun</label><input type="number" name="year" id="uploadYear" value="{{ year }}"></div>
+      <div class="form-group"><label>WOK</label><select name="wok" id="uploadWok">{% for w in wok_list %}<option value="{{ w }}" {% if w == wok %}selected{% endif %}>{{ w }}</option>{% endfor %}</select></div>
+    </div>
+    <div class="upload-zone" id="uploadZone">
+      <div class="zone-icon" id="zoneIcon">📁</div>
+      <div class="zone-title" id="zoneTitle">Klik atau seret file Excel ke sini</div>
+      <div class="zone-sub" id="zoneSub">.xlsx / .xls · maks 20 MB</div>
+      <input type="file" name="file" id="fileInput" accept=".xlsx,.xls" required>
+    </div>
+    <div class="progress-container" id="progressContainer">
+      <div class="progress-bar" id="progressBar"></div>
+      <div class="progress-text" id="progressText">0%</div>
+    </div>
+    <div id="statusMessage"></div>
+    <div style="margin-top:16px;">
+      <button type="submit" class="btn btn-primary" id="submitBtn">⬆ Upload & Proses</button>
+    </div>
+  </form>
+</div>
+
+{% if upload_history %}
+<div class="card">
+  <div class="card-header"><div class="card-title">Riwayat Upload</div></div>
+  <div class="table-wrap"><table class="history-table"><thead><tr><th>WOK</th><th>Periode</th><th>File</th><th>PS</th><th>DJP</th><th>SF</th><th>Uploader</th><th>Waktu</th></tr></thead><tbody>{% for h in upload_history %}<tr><td><strong>{{ h.wok }}</strong></td><td>{{ h.month }}/{{ h.year }}</td><td>{{ h.filename|truncate(40) }}</td><td>{{ h.ps_count }}</td><td>{{ h.djp_count }}</td><td>{{ h.sf_count }}</td><td>{{ h.uploaded_by }}</td><td>{{ h.upload_at }}</td></tr>{% endfor %}</tbody></table></div>
+</div>
+{% endif %}
+
+<script>
+(function() {
+  const form = document.getElementById('uploadForm');
+  const fileInput = document.getElementById('fileInput');
+  const submitBtn = document.getElementById('submitBtn');
+  const progressContainer = document.getElementById('progressContainer');
+  const progressBar = document.getElementById('progressBar');
+  const progressText = document.getElementById('progressText');
+  const statusMsg = document.getElementById('statusMessage');
+  const resultContainer = document.getElementById('resultContainer');
+  const zone = document.getElementById('uploadZone');
+  const zoneIcon = document.getElementById('zoneIcon');
+  const zoneTitle = document.getElementById('zoneTitle');
+  const zoneSub = document.getElementById('zoneSub');
+
+  let pollingInterval = null;
+
+  function showMessage(msg, type) {
+    statusMsg.innerHTML = `<div class="alert alert-${type}">${msg}</div>`;
+  }
+
+  function displayResult(result) {
+    resultContainer.innerHTML = `
+      <div class="result-card">
+        <div class="rc-title">✅ Upload Berhasil!</div>
+        <div class="result-grid">
+          <div class="result-stat"><div class="rs-val">${result.ps_count || 0}</div><div class="rs-label">PS</div></div>
+          <div class="result-stat"><div class="rs-val">${result.djp_count || 0}</div><div class="rs-label">DJP</div></div>
+          <div class="result-stat"><div class="rs-val">${result.sf_count || 0}</div><div class="rs-label">SF</div></div>
+        </div>
+        <div style="margin-top:12px;">Sheets: ${(result.sheets || []).map(s => `<span class="sheet-badge">${s}</span>`).join('')}</div>
+      </div>`;
+    resultContainer.style.display = 'block';
+  }
+
+  function resetForm() {
+    fileInput.value = '';
+    zoneIcon.textContent = '📁';
+    zoneTitle.textContent = 'Klik atau seret file Excel ke sini';
+    zoneSub.textContent = '.xlsx / .xls · maks 20 MB';
+    progressContainer.style.display = 'none';
+    progressBar.style.width = '0%';
+    progressText.textContent = '0%';
+    submitBtn.disabled = false;
+  }
+
+  function stopPolling() {
+    if (pollingInterval) {
+      clearInterval(pollingInterval);
+      pollingInterval = null;
+    }
+  }
+
+  function pollProgress(taskId) {
+    let retryCount = 0;
+    const MAX_RETRY = 3;
+    stopPolling();
+
+    pollingInterval = setInterval(async () => {
+      try {
+        const res = await fetch(`/kpi/upload-progress/${taskId}`);
+        if (res.status === 404) {
+          if (retryCount < MAX_RETRY) {
+            retryCount++;
+            return;
+          } else {
+            stopPolling();
+            showMessage('Task ID tidak ditemukan setelah beberapa percobaan.', 'danger');
+            resetForm();
+            return;
+          }
+        }
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+
+        if (data.status === 'processing') {
+          progressBar.style.width = data.percent + '%';
+          progressText.textContent = `${data.message} (${data.percent}%)`;
+        } else if (data.status === 'completed') {
+          stopPolling();
+          progressBar.style.width = '100%';
+          progressText.textContent = 'Selesai!';
+          displayResult(data.result);
+          showMessage('Upload dan pemrosesan berhasil!', 'success');
+          resetForm();
+          setTimeout(() => location.reload(), 1500); // reload untuk perbarui riwayat
+        } else if (data.status === 'error') {
+          stopPolling();
+          showMessage('Error: ' + data.message, 'danger');
+          resetForm();
+        }
+      } catch (err) {
+        console.error('Polling error:', err);
+        if (retryCount >= MAX_RETRY) {
+          stopPolling();
+          showMessage('Gagal mendapatkan progress dari server.', 'danger');
+          resetForm();
+        } else {
+          retryCount++;
+        }
+      }
+    }, 1000); // polling setiap 1 detik, lebih realtime
+  }
+
+  // Drag & drop dan file select
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files.length) {
+      const f = fileInput.files[0];
+      zoneIcon.textContent = '📊';
+      zoneTitle.textContent = f.name;
+      zoneSub.textContent = (f.size / 1024 / 1024).toFixed(2) + ' MB';
+    }
+  });
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('dragover'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+  zone.addEventListener('drop', e => {
+    e.preventDefault();
+    zone.classList.remove('dragover');
+    if (e.dataTransfer.files.length) {
+      fileInput.files = e.dataTransfer.files;
+      const f = fileInput.files[0];
+      zoneIcon.textContent = '📊';
+      zoneTitle.textContent = f.name;
+      zoneSub.textContent = (f.size / 1024 / 1024).toFixed(2) + ' MB';
+    }
+  });
+  zone.addEventListener('click', () => fileInput.click());
+
+  // Submit dengan cegah double submit
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    if (submitBtn.disabled) return; // sedang proses
+
+    const file = fileInput.files[0];
+    if (!file) {
+      showMessage('Pilih file Excel terlebih dahulu.', 'warning');
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('month', document.getElementById('uploadMonth').value);
+    formData.append('year', document.getElementById('uploadYear').value);
+    formData.append('wok', document.getElementById('uploadWok').value);
+
+    // Reset tampilan
+    resultContainer.style.display = 'none';
+    statusMsg.innerHTML = '';
+    progressContainer.style.display = 'block';
+    progressBar.style.width = '0%';
+    progressText.textContent = '0%';
+    submitBtn.disabled = true;
+    showMessage('Mengupload file...', 'info');
+
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/kpi/upload', true);
+    xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+    xhr.upload.onprogress = (ev) => {
+      if (ev.lengthComputable) {
+        const pct = Math.round((ev.loaded / ev.total) * 100);
+        progressBar.style.width = pct + '%';
+        progressText.textContent = `Upload file: ${pct}%`;
+      }
+    };
+    xhr.onload = () => {
+      if (xhr.status === 200) {
+        try {
+          const resp = JSON.parse(xhr.responseText);
+          if (resp.success && resp.task_id) {
+            progressText.textContent = 'Memproses di server...';
+            pollProgress(resp.task_id);
+          } else {
+            showMessage(resp.message || 'Gagal memulai proses.', 'danger');
+            resetForm();
+          }
+        } catch (err) {
+          showMessage('Respons server tidak valid.', 'danger');
+          resetForm();
+        }
+      } else {
+        showMessage('Error upload file (HTTP ' + xhr.status + ')', 'danger');
+        resetForm();
+      }
+    };
+    xhr.onerror = () => {
+      showMessage('Koneksi gagal. Periksa jaringan.', 'danger');
+      resetForm();
+    };
+    xhr.send(formData);
+  });
+})();
+</script>
+{% endblock %}

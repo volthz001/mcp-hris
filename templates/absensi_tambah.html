@@ -1,0 +1,485 @@
+{% extends "base.html" %}
+{% block title %}Absensi Hari Ini{% endblock %}
+{% block page_title %}Absensi Hari Ini{% endblock %}
+{% block breadcrumb %}Absensi{% endblock %}
+
+{% block extra_style %}
+<style>
+  .absensi-card {
+    max-width: 540px;
+    margin: 0 auto;
+  }
+  .status-block {
+    background: var(--bg-base);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+  .status-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border-light);
+  }
+  .status-row:last-child { border-bottom: none; }
+  .status-key {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-muted);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  .status-val {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--text-primary);
+    font-weight: 600;
+  }
+  .aksi-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  .aksi-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 20px 16px;
+    border-radius: var(--radius);
+    border: 1px solid;
+    cursor: pointer;
+    font-family: var(--font-main);
+    font-size: 14px;
+    font-weight: 600;
+    transition: all .2s;
+    text-align: center;
+    width: 100%;
+  }
+  .aksi-btn .aksi-icon { font-size: 28px; line-height: 1; }
+  .aksi-btn .aksi-jam  { font-family: var(--font-mono); font-size: 10px; opacity: .6; }
+
+  .aksi-checkin  { background: var(--green-dim); color: var(--green); border-color: rgba(16,185,129,.3); }
+  .aksi-checkin:hover  { background: rgba(16,185,129,.2); }
+  .aksi-checkout { background: var(--blue-dim); color: var(--blue); border-color: rgba(59,130,246,.3); }
+  .aksi-checkout:hover { background: rgba(59,130,246,.2); }
+  .aksi-izin     { background: var(--accent-dim); color: var(--accent); border-color: rgba(245,158,11,.3); }
+  .aksi-izin:hover     { background: rgba(245,158,11,.2); }
+  .aksi-sakit    { background: rgba(249,115,22,.1); color: var(--orange); border-color: rgba(249,115,22,.3); }
+  .aksi-sakit:hover    { background: rgba(249,115,22,.18); }
+  .aksi-disabled {
+    opacity: .25;
+    cursor: not-allowed;
+    pointer-events: none;
+    filter: grayscale(1);
+  }
+  .done-block {
+    background: var(--green-dim);
+    border: 1px solid rgba(16,185,129,.25);
+    border-radius: var(--radius);
+    padding: 20px;
+    text-align: center;
+  }
+  .done-block .done-icon { font-size: 36px; margin-bottom: 8px; }
+  .done-block .done-title { font-size: 15px; font-weight: 700; color: var(--green); }
+  .done-block .done-sub { font-size: 12px; color: var(--text-secondary); margin-top: 4px; }
+  .jam-live {
+    font-family: var(--font-mono);
+    font-size: 36px;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: 2px;
+    text-align: center;
+    margin-bottom: 4px;
+  }
+  .tanggal-live {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-muted);
+    text-align: center;
+    margin-bottom: 20px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .window-info {
+    font-size: 11px;
+    font-family: var(--font-mono);
+    padding: 6px 12px;
+    border-radius: 4px;
+    text-align: center;
+    margin-bottom: 16px;
+  }
+  .window-open   { background: var(--green-dim);  color: var(--green);  border: 1px solid rgba(16,185,129,.2); }
+  .window-closed { background: var(--red-dim);    color: var(--red);    border: 1px solid rgba(239,68,68,.2); }
+  .window-wait   { background: var(--accent-dim); color: var(--accent); border: 1px solid rgba(245,158,11,.2); }
+
+  .modal-overlay {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,.7);
+    z-index: 200;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-overlay.show { display: flex; }
+  .modal-box {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px;
+    width: 100%;
+    max-width: 420px;
+    margin: 16px;
+  }
+  .modal-title { font-size: 16px; font-weight: 700; margin-bottom: 16px; }
+  .alert-warning {
+    background: var(--accent-dim);
+    color: var(--accent);
+    border: 1px solid rgba(245,158,11,.2);
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 12px;
+    margin-bottom: 16px;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="absensi-card">
+
+  <!-- Jam Live -->
+  <div class="jam-live" id="live-time">--:--:--</div>
+  <div class="tanggal-live" id="live-date"></div>
+
+  <!-- Status Hari Ini -->
+  <div class="status-block">
+    <div style="font-family:var(--font-mono);font-size:9px;letter-spacing:2px;
+                color:var(--text-muted);text-transform:uppercase;margin-bottom:12px;">
+      ◉ Status Absensi · {{ today }}
+    </div>
+
+    {% if record %}
+      <div class="status-row">
+        <span class="status-key">Status</span>
+        <span class="badge badge-{{ record.status }}">{{ record.status | upper }}</span>
+      </div>
+      <div class="status-row">
+        <span class="status-key">Check-in</span>
+        <span class="status-val">{{ record.jam_masuk or '—' }}</span>
+      </div>
+      <div class="status-row">
+        <span class="status-key">Check-out</span>
+        <span class="status-val">{{ record.jam_keluar or '—' }}</span>
+      </div>
+      {% if record.keterangan %}
+      <div class="status-row">
+        <span class="status-key">Keterangan Izin/Sakit</span>
+        <span class="status-val" style="font-size:12px;color:var(--text-secondary);">
+          {{ record.keterangan }}
+        </span>
+      </div>
+      {% endif %}
+      {% if record.keterangan_checkout %}
+      <div class="status-row">
+        <span class="status-key">Keterangan Check-out</span>
+        <span class="status-val" style="font-size:12px;color:var(--text-secondary);">
+          {{ record.keterangan_checkout }}
+        </span>
+      </div>
+      {% endif %}
+    {% else %}
+      <div style="text-align:center;color:var(--text-muted);font-size:13px;padding:12px 0;">
+        Belum ada data absensi hari ini
+      </div>
+    {% endif %}
+  </div>
+
+  <!-- Jika sudah selesai (checkin + checkout) -->
+  {% if record and record.jam_masuk and record.jam_keluar %}
+  <div class="done-block">
+    <div class="done-icon">✅</div>
+    <div class="done-title">Absensi Hari Ini Selesai</div>
+    <div class="done-sub">
+      Masuk {{ record.jam_masuk }} · Keluar {{ record.jam_keluar }}
+    </div>
+    {% if record.keterangan_checkout %}
+    <div class="done-sub" style="margin-top:8px;">📝 {{ record.keterangan_checkout }}</div>
+    {% endif %}
+  </div>
+
+  <!-- Jika sudah izin atau sakit -->
+  {% elif record and record.status in ['izin', 'sakit', 'alpha'] %}
+  <div class="done-block" style="
+    {% if record.status == 'izin' %}background:var(--accent-dim);border-color:rgba(245,158,11,.25);
+    {% elif record.status == 'sakit' %}background:rgba(249,115,22,.1);border-color:rgba(249,115,22,.25);
+    {% else %}background:var(--red-dim);border-color:rgba(239,68,68,.25);{% endif %}">
+    <div class="done-icon">
+      {% if record.status == 'izin' %}📋
+      {% elif record.status == 'sakit' %}🏥
+      {% else %}⚠️{% endif %}
+    </div>
+    <div class="done-title" style="
+      {% if record.status == 'izin' %}color:var(--accent);
+      {% elif record.status == 'sakit' %}color:var(--orange);
+      {% else %}color:var(--red);{% endif %}">
+      Status: {{ record.status | upper }}
+    </div>
+    <div class="done-sub">{{ record.keterangan or '—' }}</div>
+  </div>
+
+  <!-- Notifikasi Surat Izin/Sakit -->
+  {% if record and record.status in ['izin', 'sakit'] %}
+  <div class="card" style="margin-bottom:16px;max-width:540px;margin:0 auto 16px;">
+    <div style="padding:16px;">
+      <div style="font-family:var(--font-mono);font-size:9px;letter-spacing:2px;
+                  color:var(--text-muted);text-transform:uppercase;margin-bottom:12px;">
+        📄 Status Surat {{ record.status | upper }}
+      </div>
+      {% if record.surat_dikirim %}
+        <div style="background:var(--green-dim);border:1px solid rgba(16,185,129,.25);
+                    border-radius:var(--radius);padding:14px;display:flex;gap:12px;align-items:center;">
+          <span style="font-size:24px;">✅</span>
+          <div>
+            <div style="font-weight:600;color:var(--green);font-size:13px;">Surat sudah dikirimkan</div>
+            <div style="font-size:11px;color:var(--text-secondary);margin-top:2px;">
+              No. Surat: <strong>{{ record.no_surat }}</strong>
+            </div>
+            {% if record.terlambat %}
+            <div style="font-size:11px;color:var(--accent);margin-top:4px;">⚠️ Surat terlambat</div>
+            {% endif %}
+          </div>
+        </div>
+      {% else %}
+        <div style="background:var(--accent-dim);border:1px solid rgba(245,158,11,.25);
+                    border-radius:var(--radius);padding:14px;margin-bottom:12px;">
+          <div style="font-weight:600;color:var(--accent);font-size:13px;">⚠️ Surat belum dikirim</div>
+          <div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">
+            Kirim nomor surat {{ record.status }} sesegera mungkin.
+          </div>
+        </div>
+        <form method="POST" action="{{ url_for('kirim_surat') }}">
+          <input type="hidden" name="tanggal" value="{{ record.tanggal }}">
+          <div class="form-group" style="margin-bottom:10px;">
+            <label>Nomor Surat {{ record.status | capitalize }}</label>
+            <input type="text" name="no_surat" placeholder="Contoh: SKD/RS-001/IV/2026" required>
+          </div>
+          <button type="submit" class="btn btn-primary btn-sm">📤 Kirim Surat</button>
+        </form>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Keterangan alpha -->
+  {% if record and record.status == 'alpha' %}
+  <div style="background:var(--red-dim);border:1px solid rgba(239,68,68,.25);
+              border-radius:var(--radius);padding:14px;margin-bottom:16px;">
+    <div style="font-weight:600;color:var(--red);font-size:13px;">🚨 Status ALPHA</div>
+    <div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">
+      Tidak ada konfirmasi absensi pada <strong>{{ record.tanggal }}</strong>.
+      Hubungi atasan.
+    </div>
+  </div>
+  {% endif %}
+
+  {% else %}
+  <!-- Tampilkan tombol aksi jika belum selesai -->
+
+  <!-- Pesan warning -->
+  {% if pesan_warning %}
+  <div class="alert-warning">{{ pesan_warning }}</div>
+  {% endif %}
+
+  <!-- Info window waktu -->
+  <div id="window-info" class="window-info window-wait">Memuat status waktu...</div>
+
+  <div class="aksi-grid">
+    <!-- CHECK-IN (08:00-08:30) -->
+    <form method="POST">
+      <input type="hidden" name="aksi" value="checkin">
+      <button type="submit"
+        class="aksi-btn aksi-checkin {% if not tampil_checkin %}aksi-disabled{% endif %}"
+        {% if not tampil_checkin %}disabled{% endif %}>
+        <span class="aksi-icon">🟢</span>
+        <span>Check-In</span>
+        <span class="aksi-jam">08:00 – 08:30</span>
+      </button>
+    </form>
+
+    <!-- CHECK-OUT (17:00-18:30) dengan modal -->
+    <button type="button"
+      class="aksi-btn aksi-checkout {% if not tampil_checkout %}aksi-disabled{% endif %}"
+      {% if not tampil_checkout %}disabled{% endif %}
+      onclick="bukaModal('checkout')">
+      <span class="aksi-icon">🔵</span>
+      <span>Check-Out</span>
+      <span class="aksi-jam">17:00 – 18:30</span>
+    </button>
+
+    <!-- IZIN (08:00-10:00) -->
+    <button type="button"
+      class="aksi-btn aksi-izin {% if record and record.status %}aksi-disabled{% elif not izin_sakit_enabled %}aksi-disabled{% endif %}"
+      {% if record and record.status %}disabled{% elif not izin_sakit_enabled %}disabled{% endif %}
+      onclick="bukaModal('izin')">
+      <span class="aksi-icon">📋</span>
+      <span>Izin</span>
+      <span class="aksi-jam">08:00 – 10:00</span>
+    </button>
+
+    <!-- SAKIT (08:00-10:00) -->
+    <button type="button"
+      class="aksi-btn aksi-sakit {% if record and record.status %}aksi-disabled{% elif not izin_sakit_enabled %}aksi-disabled{% endif %}"
+      {% if record and record.status %}disabled{% elif not izin_sakit_enabled %}disabled{% endif %}
+      onclick="bukaModal('sakit')">
+      <span class="aksi-icon">🏥</span>
+      <span>Sakit</span>
+      <span class="aksi-jam">08:00 – 10:00</span>
+    </button>
+  </div>
+
+  <!-- Info Alpha -->
+  <div style="background:var(--red-dim);border:1px solid rgba(239,68,68,.2);
+              border-radius:var(--radius);padding:12px 16px;
+              font-size:12px;color:var(--red);text-align:center;">
+    ⚠️ Jika tidak ada konfirmasi hingga pukul <strong>18:30</strong>,
+    status Anda akan otomatis menjadi <strong>ALPHA</strong>.
+  </div>
+
+  {% endif %}
+
+  <!-- Link ke History -->
+  <div style="margin-top:20px;text-align:center;">
+    <a href="{{ url_for('absensi_list') }}" class="btn btn-ghost btn-sm">
+      ◎ Lihat History Absensi
+    </a>
+  </div>
+
+</div>
+
+<!-- MODAL CHECKOUT (wajib keterangan) -->
+<div class="modal-overlay" id="modal-checkout">
+  <div class="modal-box">
+    <div class="modal-title" style="color:var(--blue);">🔵 Check-Out & Keterangan</div>
+    <form method="POST">
+      <input type="hidden" name="aksi" value="checkout">
+      <div class="form-group">
+        <label>Keterangan Hari Ini <span style="color:var(--danger);">*</span></label>
+        <textarea name="keterangan_checkout" rows="4" required
+                  placeholder="Contoh: Menyelesaikan laporan keuangan, meeting dengan client, review project, dll."></textarea>
+        <div style="font-size:10px; color:var(--text-muted); margin-top:4px;">
+          Isi ringkasan pekerjaan atau aktivitas hari ini.
+        </div>
+      </div>
+      <div class="flex gap-2" style="margin-top:16px;">
+        <button type="submit" class="btn btn-primary" style="flex:1; background:var(--blue);">✅ Konfirmasi Check-Out</button>
+        <button type="button" class="btn btn-ghost" onclick="tutupModal('checkout')">Batal</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- MODAL IZIN -->
+<div class="modal-overlay" id="modal-izin">
+  <div class="modal-box">
+    <div class="modal-title" style="color:var(--accent);">📋 Konfirmasi Izin</div>
+    <form method="POST">
+      <input type="hidden" name="aksi" value="izin">
+      <div class="form-group">
+        <label>Keterangan Izin</label>
+        <textarea name="keterangan" rows="4" required
+                  placeholder="Contoh: Keperluan keluarga, urusan administrasi, dsb..."></textarea>
+      </div>
+      <div class="flex gap-2" style="margin-top:16px;">
+        <button type="submit" class="btn btn-primary" style="flex:1;">Konfirmasi Izin</button>
+        <button type="button" class="btn btn-ghost" onclick="tutupModal('izin')">Batal</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- MODAL SAKIT -->
+<div class="modal-overlay" id="modal-sakit">
+  <div class="modal-box">
+    <div class="modal-title" style="color:var(--orange);">🏥 Konfirmasi Sakit</div>
+    <form method="POST">
+      <input type="hidden" name="aksi" value="sakit">
+      <div class="form-group">
+        <label>Keterangan Sakit</label>
+        <textarea name="keterangan" rows="4" required
+                  placeholder="Contoh: Demam, flu, kontrol dokter, dsb..."></textarea>
+      </div>
+      <div class="form-group">
+        <label>Surat Dokter <span style="color:var(--text-muted);font-size:9px;">(opsional)</span></label>
+        <input type="text" name="no_surat" placeholder="Nomor surat dokter jika ada">
+      </div>
+      <div class="flex gap-2" style="margin-top:16px;">
+        <button type="submit" class="btn btn-primary" style="flex:1;background:var(--orange);color:#fff;">Konfirmasi Sakit</button>
+        <button type="button" class="btn btn-ghost" onclick="tutupModal('sakit')">Batal</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_script %}
+<script>
+  const HARI  = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
+  const BULAN = ['Januari','Februari','Maret','April','Mei','Juni',
+                 'Juli','Agustus','September','Oktober','November','Desember'];
+
+  function pad(n) { return String(n).padStart(2,'0'); }
+
+  function updateLiveClock() {
+    const now  = new Date();
+    const jam  = pad(now.getHours());
+    const mnt  = pad(now.getMinutes());
+    const dtk  = pad(now.getSeconds());
+    const hari = HARI[now.getDay()];
+    const tgl  = pad(now.getDate());
+    const bln  = BULAN[now.getMonth()];
+    const thn  = now.getFullYear();
+    const h    = now.getHours();
+    const m    = now.getMinutes();
+
+    document.getElementById('live-time').textContent = `${jam}:${mnt}:${dtk}`;
+    document.getElementById('live-date').textContent = `${hari}, ${tgl} ${bln} ${thn}`;
+
+    const info = document.getElementById('window-info');
+    if (info) {
+      if (h === 8 && m <= 30) {
+        info.className = 'window-info window-open';
+        info.textContent = '✅ Check-in tersedia (08:00 – 08:30)';
+      } else if ((h === 17 || (h === 18 && m <= 30)) && h >= 17) {
+        info.className = 'window-info window-open';
+        info.textContent = '✅ Check-out tersedia (17:00 – 18:30)';
+      } else {
+        info.className = 'window-info window-closed';
+        info.textContent = '⏰ Di luar jam absensi.';
+      }
+    }
+  }
+
+  updateLiveClock();
+  setInterval(updateLiveClock, 1000);
+
+  function bukaModal(tipe) {
+    const modal = document.getElementById('modal-' + tipe);
+    if (modal) modal.classList.add('show');
+  }
+  function tutupModal(tipe) {
+    const modal = document.getElementById('modal-' + tipe);
+    if (modal) modal.classList.remove('show');
+  }
+  // Tutup modal saat klik di luar
+  document.querySelectorAll('.modal-overlay').forEach(overlay => {
+    overlay.addEventListener('click', function(e) {
+      if (e.target === this) this.classList.remove('show');
+    });
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,444 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edit' if kasbon else 'Ajukan' }} Kasbon{% endblock %}
+{% block page_title %}{{ 'Edit' if kasbon else 'Ajukan' }} Kasbon{% endblock %}
+{% block breadcrumb %}Transaksi / Kasbon / {{ 'Edit' if kasbon else 'Baru' }}{% endblock %}
+
+{% block extra_style %}
+<style>
+  .form-wrap {
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    gap: 20px;
+    align-items: start;
+  }
+  @media (max-width: 860px) {
+    .form-wrap { grid-template-columns: 1fr; }
+  }
+
+  /* ── Form card ── */
+  .form-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .form-card-header {
+    padding: 18px 22px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 12px;
+  }
+  .form-card-icon {
+    width: 40px; height: 40px; border-radius: 9px;
+    background: var(--accent-dim); border: 1px solid rgba(245,158,11,.25);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; flex-shrink: 0;
+  }
+  .form-card-title { font-size: 14px; font-weight: 700; color: var(--text-primary); }
+  .form-card-sub   { font-size: 11px; color: var(--text-muted); font-family: 'IBM Plex Mono', monospace; margin-top: 2px; }
+  .form-card-body  { padding: 22px; }
+
+  /* ── Input styling (override base) ── */
+  .kf-group { margin-bottom: 18px; }
+  .kf-label {
+    display: block; margin-bottom: 7px;
+    font-family: 'IBM Plex Mono', monospace; font-size: 10px;
+    font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase;
+    color: var(--text-secondary);
+  }
+  .kf-label span.req { color: var(--red); margin-left: 2px; }
+  .kf-input {
+    width: 100%; padding: 10px 13px;
+    background: var(--bg-base); border: 1.5px solid var(--border);
+    border-radius: 8px; color: var(--text-primary);
+    font-family: 'IBM Plex Sans', sans-serif; font-size: 13.5px;
+    outline: none; transition: border-color .15s, box-shadow .15s;
+  }
+  .kf-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); }
+  .kf-input:invalid:not(:placeholder-shown) { border-color: var(--red); }
+  .kf-input[readonly] {
+    background: var(--bg-hover); color: var(--text-secondary);
+    cursor: not-allowed;
+  }
+  .kf-textarea { min-height: 100px; resize: vertical; }
+
+  /* Nominal input with Rp prefix */
+  .nominal-wrap {
+    position: relative;
+  }
+  .nominal-prefix {
+    position: absolute; left: 13px; top: 50%; transform: translateY(-50%);
+    font-family: 'IBM Plex Mono', monospace; font-size: 13px;
+    color: var(--text-secondary); pointer-events: none; font-weight: 600;
+  }
+  .nominal-wrap .kf-input { padding-left: 40px; font-family: 'IBM Plex Mono', monospace; font-size: 15px; font-weight: 700; }
+
+  /* Range indicator */
+  .range-bar {
+    margin-top: 8px; display: flex; align-items: center; gap: 0;
+    height: 4px; border-radius: 2px;
+    background: var(--border);
+    position: relative; overflow: hidden;
+  }
+  .range-fill {
+    height: 100%; border-radius: 2px;
+    background: var(--green);
+    transition: width .2s, background .2s;
+    position: absolute; left: 0; top: 0;
+  }
+  .range-labels {
+    display: flex; justify-content: space-between; margin-top: 5px;
+  }
+  .range-labels span {
+    font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--text-muted);
+  }
+  .nominal-display {
+    text-align: center; margin-top: 8px;
+    font-family: 'IBM Plex Mono', monospace; font-size: 12px;
+    color: var(--text-secondary);
+    min-height: 18px;
+  }
+  .nominal-display.valid   { color: var(--green); }
+  .nominal-display.invalid { color: var(--red); }
+
+  /* Validation msg */
+  .kf-hint {
+    margin-top: 5px; font-size: 11px; color: var(--text-muted);
+    font-family: 'IBM Plex Mono', monospace; min-height: 16px;
+  }
+  .kf-hint.error  { color: var(--red); }
+  .kf-hint.ok     { color: var(--green); }
+
+  /* ── Info sidebar ── */
+  .info-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .info-card-header {
+    padding: 14px 18px; border-bottom: 1px solid var(--border);
+    font-size: 12px; font-weight: 700; color: var(--text-primary);
+  }
+  .info-card-body { padding: 16px 18px; }
+  .info-row {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    padding: 9px 0; border-bottom: 1px solid var(--border-light); gap: 10px;
+  }
+  .info-row:last-child { border-bottom: none; }
+  .info-key   { font-size: 11px; color: var(--text-muted); font-family: 'IBM Plex Mono', monospace; flex-shrink: 0; }
+  .info-val   { font-size: 12px; color: var(--text-primary); font-weight: 600; text-align: right; }
+  .info-val.accent  { color: var(--accent); }
+  .info-val.green   { color: var(--green); }
+  .info-val.red     { color: var(--red); }
+
+  .rule-list { list-style: none; display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+  .rule-item { display: flex; gap: 8px; align-items: flex-start; font-size: 12px; color: var(--text-secondary); }
+  .rule-icon { flex-shrink: 0; font-size: 12px; margin-top: 1px; }
+
+  /* Action buttons */
+  .form-actions {
+    display: flex; gap: 10px; padding-top: 4px;
+  }
+  .btn-submit {
+    padding: 11px 24px; border-radius: 8px;
+    background: var(--accent); color: #000; font-weight: 700;
+    font-size: 14px; cursor: pointer; border: none;
+    font-family: 'IBM Plex Sans', sans-serif;
+    transition: all .15s; display: flex; align-items: center; gap: 7px;
+  }
+  .btn-submit:hover { background: var(--accent-hover); transform: translateY(-1px); }
+  .btn-submit:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="flex items-center gap-2 mb-4" style="flex-wrap:wrap;">
+  <a href="{{ url_for('kasbon_list') }}" class="btn btn-ghost btn-sm">← Kembali</a>
+  <div>
+    <div class="page-title">{{ '✏ Edit' if kasbon else '💳 Ajukan' }} Kasbon</div>
+    <div class="page-desc">Pengajuan kasbon karyawan — min Rp 50.000 · max Rp 500.000</div>
+  </div>
+</div>
+
+<div class="form-wrap">
+
+  {# ── FORM KIRI ── #}
+  <div class="form-card">
+    <div class="form-card-header">
+      <div class="form-card-icon">💳</div>
+      <div>
+        <div class="form-card-title">Form Pengajuan Kasbon</div>
+        <div class="form-card-sub">Semua field wajib diisi</div>
+      </div>
+    </div>
+    <div class="form-card-body">
+      <form method="POST" id="kasbonForm" novalidate>
+
+        {# Nama — readonly, otomatis dari session #}
+        <div class="kf-group">
+          <label class="kf-label">Nama Karyawan</label>
+          <input type="text" class="kf-input" value="{{ session.name }}" readonly
+                 title="Nama diisi otomatis dari akun Anda">
+          <div class="kf-hint ok">✓ Terisi otomatis dari akun Anda</div>
+        </div>
+
+        {# NIK — readonly atau diisi dari user session #}
+        <div class="kf-group">
+          <label class="kf-label">NIK <span class="req">*</span></label>
+          <input type="text" name="nik" id="nikInput"
+                 class="kf-input"
+                 value="{{ kasbon.nik if kasbon else (session.nik or '') }}"
+                 placeholder="Nomor Induk Karyawan"
+                 required maxlength="20">
+          <div class="kf-hint" id="nikHint"></div>
+        </div>
+
+        {# Nominal #}
+        <div class="kf-group">
+          <label class="kf-label">Nominal <span class="req">*</span></label>
+          <div class="nominal-wrap">
+            <span class="nominal-prefix">Rp</span>
+            <input type="number" name="nominal" id="nominalInput"
+                   class="kf-input"
+                   value="{{ kasbon.nominal if kasbon else '' }}"
+                   placeholder="0"
+                   min="50000" max="500000"
+                   step="1000"
+                   required>
+          </div>
+          <div class="range-bar">
+            <div class="range-fill" id="rangeFill"></div>
+          </div>
+          <div class="range-labels">
+            <span>Rp 50.000 (min)</span>
+            <span>Rp 500.000 (max)</span>
+          </div>
+          <div class="nominal-display" id="nominalDisplay"></div>
+          <div class="kf-hint" id="nominalHint"></div>
+        </div>
+
+        {# Keterangan #}
+        <div class="kf-group">
+          <label class="kf-label">Keterangan / Keperluan <span class="req">*</span></label>
+          <textarea name="keterangan" id="ketInput"
+                    class="kf-input kf-textarea"
+                    placeholder="Jelaskan keperluan pengajuan kasbon ini…"
+                    required minlength="10" maxlength="500">{{ kasbon.keterangan if kasbon else '' }}</textarea>
+          <div class="kf-hint" id="ketHint">Minimal 10 karakter · <span id="ketCount">0</span>/500</div>
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" class="btn-submit" id="submitBtn" disabled>
+            📤 {{ 'Simpan Perubahan' if kasbon else 'Kirim Pengajuan' }}
+          </button>
+          <a href="{{ url_for('kasbon_list') }}" class="btn btn-ghost" style="padding:11px 20px;">Batal</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  {# ── INFO SIDEBAR KANAN ── #}
+  <div style="display:flex;flex-direction:column;gap:14px;">
+
+    {# Preview nominal #}
+    <div class="info-card">
+      <div class="info-card-header">📊 Ringkasan Pengajuan</div>
+      <div class="info-card-body">
+        <div class="info-row">
+          <span class="info-key">Nama</span>
+          <span class="info-val">{{ session.name }}</span>
+        </div>
+        <div class="info-row">
+          <span class="info-key">Tanggal</span>
+          <span class="info-val">{{ today.strftime('%d %B %Y') }}</span>
+        </div>
+        <div class="info-row">
+          <span class="info-key">Status Awal</span>
+          <span class="info-val accent">⏳ Pending</span>
+        </div>
+        <div class="info-row">
+          <span class="info-key">Nominal</span>
+          <span class="info-val green" id="previewNominal">—</span>
+        </div>
+        <div class="info-row">
+          <span class="info-key">Kasbon Aktif</span>
+          <span class="info-val {{ 'red' if user_kasbon_pending > 0 else 'green' }}">
+            {{ user_kasbon_pending }} pending
+          </span>
+        </div>
+      </div>
+    </div>
+
+    {# Aturan #}
+    <div class="info-card">
+      <div class="info-card-header">📋 Ketentuan Kasbon</div>
+      <div class="info-card-body">
+        <ul class="rule-list">
+          <li class="rule-item"><span class="rule-icon">💰</span> Minimal pengajuan <strong>Rp 50.000</strong></li>
+          <li class="rule-item"><span class="rule-icon">🔝</span> Maksimal pengajuan <strong>Rp 500.000</strong></li>
+          <li class="rule-item"><span class="rule-icon">⏳</span> Akan direview oleh VP / GML / Manager WOK</li>
+          <li class="rule-item"><span class="rule-icon">✍</span> Isi keterangan dengan lengkap dan jelas</li>
+          <li class="rule-item"><span class="rule-icon">📅</span> Pengajuan diproses pada hari kerja</li>
+        </ul>
+      </div>
+    </div>
+
+    {# Riwayat singkat #}
+    {% if recent_kasbon %}
+    <div class="info-card">
+      <div class="info-card-header">🕐 Pengajuan Terakhir</div>
+      <div class="info-card-body" style="padding:10px 18px;">
+        {% for rk in recent_kasbon[:3] %}
+        <div class="info-row">
+          <div>
+            <div style="font-size:12px;color:var(--text-primary);font-weight:600;">
+              Rp {{ '{:,.0f}'.format(rk.nominal) }}
+            </div>
+            <div style="font-size:10px;color:var(--text-muted);font-family:'IBM Plex Mono',monospace;">
+              {{ rk.created_at.strftime('%d %b %Y') if rk.created_at else '—' }}
+            </div>
+          </div>
+          <span class="badge badge-{{ rk.status }}" style="font-size:9px;">{{ rk.status|upper }}</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_script %}
+<script>
+/* ═══════════════════════════════════════════════
+   Kasbon Form — Validation & Live Preview
+═══════════════════════════════════════════════ */
+const MIN = 50000, MAX = 500000;
+
+const nomInput   = document.getElementById('nominalInput');
+const nikInput   = document.getElementById('nikInput');
+const ketInput   = document.getElementById('ketInput');
+const submitBtn  = document.getElementById('submitBtn');
+const rangeFill  = document.getElementById('rangeFill');
+const nomDisplay = document.getElementById('nominalDisplay');
+const nomHint    = document.getElementById('nominalHint');
+const nikHint    = document.getElementById('nikHint');
+const ketHint    = document.getElementById('ketHint');
+const ketCount   = document.getElementById('ketCount');
+const preview    = document.getElementById('previewNominal');
+
+function formatRp(n) {
+  return 'Rp ' + n.toLocaleString('id-ID');
+}
+
+/* ── Nominal validation ── */
+function validateNominal() {
+  const val = parseInt(nomInput.value) || 0;
+  const pct = Math.min(Math.max((val - MIN) / (MAX - MIN), 0), 1);
+
+  // Range bar
+  if (val === 0) {
+    rangeFill.style.width = '0%';
+    rangeFill.style.background = 'var(--border)';
+  } else {
+    rangeFill.style.width = (pct * 100) + '%';
+    rangeFill.style.background = (val < MIN || val > MAX) ? 'var(--red)' : 'var(--green)';
+  }
+
+  // Display
+  if (val === 0) {
+    nomDisplay.textContent = '';
+    nomDisplay.className = 'nominal-display';
+    preview.textContent = '—';
+    nomHint.textContent = '';
+    nomHint.className = 'kf-hint';
+    return false;
+  }
+
+  nomDisplay.textContent = formatRp(val);
+
+  if (val < MIN) {
+    nomDisplay.className = 'nominal-display invalid';
+    nomHint.textContent  = `✕ Minimal Rp 50.000 (kurang ${formatRp(MIN - val)})`;
+    nomHint.className    = 'kf-hint error';
+    preview.textContent  = formatRp(val);
+    return false;
+  } else if (val > MAX) {
+    nomDisplay.className = 'nominal-display invalid';
+    nomHint.textContent  = `✕ Maksimal Rp 500.000 (lebih ${formatRp(val - MAX)})`;
+    nomHint.className    = 'kf-hint error';
+    preview.textContent  = formatRp(val);
+    return false;
+  } else {
+    nomDisplay.className = 'nominal-display valid';
+    nomHint.textContent  = `✓ ${formatRp(val)} — valid`;
+    nomHint.className    = 'kf-hint ok';
+    preview.textContent  = formatRp(val);
+    return true;
+  }
+}
+
+/* ── NIK validation ── */
+function validateNik() {
+  const val = nikInput.value.trim();
+  if (!val) {
+    nikHint.textContent = '✕ NIK wajib diisi';
+    nikHint.className = 'kf-hint error';
+    return false;
+  }
+  nikHint.textContent = '✓ NIK terisi';
+  nikHint.className = 'kf-hint ok';
+  return true;
+}
+
+/* ── Keterangan validation ── */
+function validateKet() {
+  const val = ketInput.value.trim();
+  ketCount.textContent = val.length;
+  if (!val) {
+    ketHint.innerHTML = '✕ Keterangan wajib diisi · <span id="ketCount">' + val.length + '</span>/500';
+    ketHint.className = 'kf-hint error';
+    return false;
+  }
+  if (val.length < 10) {
+    ketHint.innerHTML = `✕ Minimal 10 karakter (${val.length}/10) · <span id="ketCount">${val.length}</span>/500`;
+    ketHint.className = 'kf-hint error';
+    return false;
+  }
+  ketHint.innerHTML = `✓ ${val.length} karakter · <span id="ketCount">${val.length}</span>/500`;
+  ketHint.className = 'kf-hint ok';
+  return true;
+}
+
+/* ── Master validation → toggle submit ── */
+function checkAll() {
+  const ok = validateNominal() && validateNik() && validateKet();
+  submitBtn.disabled = !ok;
+  return ok;
+}
+
+nomInput.addEventListener('input', checkAll);
+nikInput.addEventListener('input', checkAll);
+ketInput.addEventListener('input', checkAll);
+
+/* ── Form submit guard ── */
+document.getElementById('kasbonForm').addEventListener('submit', function(e) {
+  if (!checkAll()) {
+    e.preventDefault();
+    // Scroll to first error
+    const bad = document.querySelector('.kf-hint.error');
+    if (bad) bad.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+});
+
+/* ── Init ── */
+(function(){
+  const v = parseInt(nomInput.value)||0;
+  if (v) checkAll();
+  ketCount.textContent = ketInput.value.trim().length;
+})();
+</script>
+{% endblock %}

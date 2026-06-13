@@ -1,0 +1,208 @@
+{% extends "base.html" %}
+{% block title %}Registrasi Akun Baru{% endblock %}
+{% block page_title %}Registrasi Akun Baru{% endblock %}
+{% block breadcrumb %}Register{% endblock %}
+
+{% block content %}
+<style>
+  .password-container {
+    position: relative;
+    width: 100%;
+  }
+  .password-container input {
+    width: 100%;
+    padding-right: 40px;
+  }
+  .toggle-password {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #6c757d;
+    transition: color 0.2s;
+  }
+  .toggle-password:hover {
+    color: var(--accent, #f59e0b);
+  }
+  .error-message {
+    color: #ef4444;
+    font-size: 12px;
+    margin-top: 5px;
+    display: none;
+  }
+  .form-group.error input, .form-group.error .password-container input {
+    border-color: #ef4444;
+  }
+  .info-text {
+    font-size: 12px;
+    color: #7a8499;
+    margin-top: 4px;
+  }
+</style>
+
+<div class="card" style="max-width: 600px; margin: 0 auto;">
+  <form method="POST" action="{{ url_for('register') }}" id="registerForm" {{ csrf_token() }}>
+    
+    <div class="form-group">
+      <label>Username *</label>
+      <input type="text" name="username" required>
+    </div>
+    <div class="form-group">
+      <label>Email *</label>
+      <input type="email" name="email" required placeholder="email@domain.com">
+    </div>
+    <div class="form-group" id="password-group">
+      <label>Password *</label>
+      <div class="password-container">
+        <input type="password" name="password" id="reg-password" required>
+        <button type="button" class="toggle-password" id="toggleRegPassword" aria-label="Tampilkan password">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+            <circle cx="12" cy="12" r="3"/>
+          </svg>
+        </button>
+      </div>
+      <div class="error-message" id="password-error"></div>
+      <div class="info-text">Minimal 8 karakter dan mengandung minimal 1 simbol (contoh: ! @ # $ % ^ & *)</div>
+    </div>
+    <div class="form-group">
+      <label>Nama Lengkap *</label>
+      <input type="text" name="nama" required>
+    </div>
+    <div class="form-group">
+      <label>NIK *</label>
+      <input type="text" name="nik" required>
+    </div>
+    <div class="form-group">
+      <label>WOK (Wilayah Operasional Kerja) *</label>
+      <select name="wok" required>
+        <option value="">Pilih WOK</option>
+        <option value="JAKTIM">JAKTIM</option>
+        <option value="JAKBAR">JAKBAR</option>
+        <option value="JAKSEL">JAKSEL</option>
+        <option value="JAKUT">JAKUT</option>
+        <option value="JAKPUS">JAKPUS</option>
+        <option value="DEPOK">DEPOK</option>
+        <option value="BEKASI">BEKASI</option>
+        <option value="BOGOR">BOGOR</option>
+        <option value="TANGERANG">TANGERANG</option>
+      </select>
+    </div>
+
+    <!-- Role: TL sebagai default (tidak bisa diganti) -->
+    <div class="form-group">
+      <label>Role (Jabatan) *</label>
+      <div class="info-text" style="background: rgba(245,158,11,.1); padding: 8px 12px; border-radius: 6px;">
+        <strong>Team Leader (TL)</strong> — Role ini sudah ditetapkan secara default.
+      </div>
+      <input type="hidden" name="role" value="TL">
+    </div>
+
+    <div class="form-group">
+      <label>Area (opsional, default = WOK)</label>
+      <input type="text" name="area" placeholder="Area kerja">
+    </div>
+    <div class="form-group">
+      <label>GML ID (opsional)</label>
+      <input type="text" name="gml_id" placeholder="ID GML">
+    </div>
+    <div class="form-group">
+      <label>WOK ID (opsional)</label>
+      <input type="text" name="wok_id" placeholder="ID WOK">
+    </div>
+    <div class="form-group">
+      <label>TL ID (opsional)</label>
+      <input type="text" name="tl_id" placeholder="ID Team Leader">
+    </div>
+    <button type="submit" class="btn btn-primary">Daftar</button>
+    <a href="{{ url_for('login') }}" class="btn btn-ghost">Kembali ke Login</a>
+  </form>
+</div>
+
+<script>
+  // Show/Hide password toggle
+  (function() {
+    const toggleBtn = document.getElementById('toggleRegPassword');
+    const passwordInput = document.getElementById('reg-password');
+    
+    if (toggleBtn && passwordInput) {
+      let isVisible = false;
+      
+      function updateIcon(visible) {
+        if (visible) {
+          toggleBtn.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+            <circle cx="12" cy="12" r="3"/>
+            <line x1="3" y1="3" x2="21" y2="21"/>
+          </svg>`;
+          toggleBtn.setAttribute('aria-label', 'Sembunyikan password');
+        } else {
+          toggleBtn.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+            <circle cx="12" cy="12" r="3"/>
+          </svg>`;
+          toggleBtn.setAttribute('aria-label', 'Tampilkan password');
+        }
+      }
+      
+      passwordInput.type = 'password';
+      updateIcon(false);
+      
+      toggleBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        isVisible = !isVisible;
+        passwordInput.type = isVisible ? 'text' : 'password';
+        updateIcon(isVisible);
+        passwordInput.focus();
+      });
+    }
+  })();
+
+  // Validasi password sebelum submit
+  const form = document.getElementById('registerForm');
+  const passwordInput = document.getElementById('reg-password');
+  const passwordError = document.getElementById('password-error');
+  const passwordGroup = document.getElementById('password-group');
+
+  function validatePassword() {
+    const password = passwordInput.value;
+    // Cek minimal 8 karakter
+    if (password.length < 8) {
+      passwordError.textContent = 'Password harus minimal 8 karakter.';
+      passwordError.style.display = 'block';
+      passwordGroup.classList.add('error');
+      return false;
+    }
+    // Cek mengandung setidaknya satu simbol (karakter spesial)
+    const symbolRegex = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/;
+    if (!symbolRegex.test(password)) {
+      passwordError.textContent = 'Password harus mengandung minimal satu simbol (contoh: ! @ # $ % ^ & *).';
+      passwordError.style.display = 'block';
+      passwordGroup.classList.add('error');
+      return false;
+    }
+    passwordError.style.display = 'none';
+    passwordGroup.classList.remove('error');
+    return true;
+  }
+
+  passwordInput.addEventListener('input', function() {
+    if (passwordError.style.display === 'block') {
+      validatePassword();
+    }
+  });
+
+  form.addEventListener('submit', function(event) {
+    if (!validatePassword()) {
+      event.preventDefault();
+    }
+  });
+</script>
+{% endblock %}

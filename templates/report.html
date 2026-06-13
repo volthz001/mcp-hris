@@ -1,0 +1,243 @@
+{% extends "base.html" %}
+{% block title %}Laporan Harian{% endblock %}
+{% block page_title %}Laporan Harian{% endblock %}
+{% block breadcrumb %}Analitik{% endblock %}
+
+{% block content %}
+
+{# ── Filter Bar ──────────────────────────────────────────── #}
+<form method="GET" style="
+  display:flex; gap:10px; flex-wrap:wrap;
+  align-items:flex-end; margin-bottom:24px;
+  background:var(--card-bg,#fff);
+  border:1px solid var(--border,#e5e7eb);
+  border-radius:10px; padding:14px 16px;">
+
+  <div style="display:flex;flex-direction:column;gap:4px;">
+    <label style="font-size:11px;font-weight:600;color:var(--text-muted);">DARI TANGGAL</label>
+    <input type="date" name="date_from" value="{{ date_from }}"
+           class="form-control" style="width:160px;">
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:4px;">
+    <label style="font-size:11px;font-weight:600;color:var(--text-muted);">SAMPAI TANGGAL</label>
+    <input type="date" name="date_to" value="{{ date_to }}"
+           class="form-control" style="width:160px;">
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:4px;">
+    <label style="font-size:11px;font-weight:600;color:var(--text-muted);">WOK</label>
+    <select name="wok" class="form-control" style="width:160px;">
+      <option value="">— Semua WOK —</option>
+      {% for w in wok_list %}
+      <option value="{{ w }}" {{ 'selected' if w == wok_filter }}>{{ w }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:4px;">
+    <label style="font-size:11px;font-weight:600;color:var(--text-muted);">CARI NAMA</label>
+    <input type="text" name="search" value="{{ search }}"
+           placeholder="Nama karyawan..." class="form-control" style="width:180px;">
+  </div>
+
+  <div style="display:flex;gap:8px;padding-bottom:1px;">
+    <button type="submit" class="btn btn-primary">🔍 Tampilkan</button>
+    <a href="{{ url_for('report_harian') }}" class="btn btn-ghost">Reset</a>
+  </div>
+
+</form>
+
+{# Label periode aktif #}
+<div style="font-size:12px;color:var(--text-muted);margin-bottom:16px;">
+  📅 Menampilkan:
+  <strong>{{ date_from }}{% if date_from != date_to %} s/d {{ date_to }}{% endif %}</strong>
+  {% if wok_filter %} &nbsp;|&nbsp; 📍 WOK: <strong>{{ wok_filter }}</strong>{% endif %}
+  {% if search %} &nbsp;|&nbsp; 🔎 "<strong>{{ search }}</strong>"{% endif %}
+</div>
+
+
+{% if current_user.role in ['admin_absence', 'vp', 'VP', 'GML', 'MANAGER_WOK', 'TS', 'TC', 'TL'] or current_user.id == profile.user_id %}
+
+{# ── Stat Cards Absensi ───────────────────────────────────── #}
+<div style="font-family:var(--font-mono);font-size:10px;letter-spacing:2px;
+            color:var(--text-muted);text-transform:uppercase;margin-bottom:10px;">
+  ◉ Ringkasan Absensi
+</div>
+<div class="stat-grid" style="margin-bottom:24px;">
+  <div class="stat-card green">
+    <div class="stat-label">Hadir</div>
+    <div class="stat-value">{{ abs_sum.hadir }}</div>
+  </div>
+  <div class="stat-card blue">
+    <div class="stat-label">Izin Kegiatan</div>
+    <div class="stat-value">{{ abs_sum.izin }}</div>
+  </div>
+  <div class="stat-card accent">
+    <div class="stat-label">Sakit</div>
+    <div class="stat-value">{{ abs_sum.sakit }}</div>
+  </div>
+  <div class="stat-card red">
+    <div class="stat-label">Alpha</div>
+    <div class="stat-value">{{ abs_sum.alpha }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Total Data</div>
+    <div class="stat-value">{{ absensi_hari|length }}</div>
+  </div>
+</div>
+
+{# ── Stat Cards Kasbon ────────────────────────────────────── #}
+<div style="font-family:var(--font-mono);font-size:10px;letter-spacing:2px;
+            color:var(--text-muted);text-transform:uppercase;margin-bottom:10px;">
+  ◈ Ringkasan Kasbon
+</div>
+<div class="stat-grid" style="margin-bottom:24px;">
+  <div class="stat-card accent">
+    <div class="stat-label">Total Pengajuan</div>
+    <div class="stat-value">{{ kas_sum.total }}</div>
+  </div>
+  <div class="stat-card green">
+    <div class="stat-label">Disetujui</div>
+    <div class="stat-value">{{ kas_sum.approved }}</div>
+  </div>
+  <div class="stat-card red">
+    <div class="stat-label">Ditolak</div>
+    <div class="stat-value">{{ kas_sum.rejected }}</div>
+  </div>
+  <div class="stat-card accent">
+    <div class="stat-label">Pending</div>
+    <div class="stat-value">{{ kas_sum.pending }}</div>
+  </div>
+  <div class="stat-card blue">
+    <div class="stat-label">Total Nominal Cair</div>
+    <div class="stat-value" style="font-size:14px;">Rp {{ '{:,.0f}'.format(kas_sum.amount) }}</div>
+  </div>
+</div>
+
+
+{# ── Tabel Detail Absensi ─────────────────────────────────── #}
+<div class="card" style="margin-bottom:20px;">
+  <div class="card-header">
+    <div class="card-title">📋 Detail Absensi</div>
+    <div class="card-subtitle">{{ absensi_hari|length }} data</div>
+  </div>
+  <div class="table-wrap">
+    {% if absensi_hari %}
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Nama</th>
+          <th>NIK / User ID</th>
+          <th>WOK / Area</th>
+          <th>Tanggal</th>
+          <th>Jam Masuk</th>
+          <th>Jam Keluar</th>
+          <th>Status</th>
+          <th>Keterangan</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for a in absensi_hari %}
+        <tr>
+          <td>{{ loop.index }}</td>
+          <td>{{ a.nama_karyawan }}</td>
+          <td class="text-mono" style="font-size:11px;">{{ a.nik or '—' }}</td>
+          <td>{{ a.area or '—' }}</td>
+          <td>{{ a.tanggal }}</td>
+          <td>{{ a.jam_masuk or '—' }}</td>
+          <td>{{ a.jam_keluar or '—' }}</td>
+          <td>
+            {% set st = a.status %}
+            <span class="badge badge-{{ st }}
+              {% if st == 'hadir' %}bg-success
+              {% elif st == 'tidak_hadir' %}bg-danger
+              {% elif st == 'izin_sakit' %}bg-warning
+              {% elif st == 'izin_kegiatan' %}bg-info
+              {% endif %}">
+              {% if st == 'hadir' %}Hadir
+              {% elif st == 'tidak_hadir' %}Tdk Hadir
+              {% elif st == 'izin_sakit' %}Sakit
+              {% elif st == 'izin_kegiatan' %}Izin
+              {% else %}{{ st|upper }}{% endif %}
+            </span>
+          </td>
+          <td class="muted" style="max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+            {{ a.keterangan or '—' }}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div style="padding:32px;text-align:center;color:var(--text-muted);">
+      Tidak ada data absensi untuk filter ini.
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+
+{# ── Tabel Detail Kasbon ──────────────────────────────────── #}
+<div class="card">
+  <div class="card-header">
+    <div class="card-title">💰 Detail Kasbon</div>
+    <div class="card-subtitle">{{ kasbon_hari|length }} data</div>
+  </div>
+  <div class="table-wrap">
+    {% if kasbon_hari %}
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Nama</th>
+          <th>NIK / User ID</th>
+          <th>WOK / Area</th>
+          <th>Tanggal</th>
+          <th>Jumlah</th>
+          <th>Keperluan</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for k in kasbon_hari %}
+        <tr>
+          <td>{{ loop.index }}</td>
+          <td>{{ k.nama_karyawan }}</td>
+          <td class="text-mono" style="font-size:11px;">{{ k.nik or '—' }}</td>
+          <td>{{ k.area or '—' }}</td>
+          <td>{{ k.tanggal_str or '—' }}</td>
+          <td class="number">Rp {{ '{:,.0f}'.format(k.jumlah) }}</td>
+          <td style="max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+            {{ k.keperluan or '—' }}
+          </td>
+          <td>
+            {% set ks = k.status %}
+            <span class="badge badge-{{ ks }}
+              {% if ks in ['approved','disetujui'] %}bg-success
+              {% elif ks in ['rejected','ditolak'] %}bg-danger
+              {% else %}bg-warning{% endif %}">
+              {{ ks|upper }}
+            </span>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div style="padding:32px;text-align:center;color:var(--text-muted);">
+      Tidak ada data kasbon untuk filter ini.
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+{% else %}
+<div style="padding:48px;text-align:center;color:var(--text-muted);">
+  <div style="font-size:36px;margin-bottom:12px;">🔒</div>
+  <p>Anda tidak memiliki akses untuk melihat laporan ini.</p>
+</div>
+{% endif %}
+
+{% endblock %}

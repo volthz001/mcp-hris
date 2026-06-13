@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}Absensi - Riwayat Kehadiran{% endblock %}
+{% block page_title %}Riwayat Absensi{% endblock %}
+{% block breadcrumb %}Absensi{% endblock %}
+
+{% block content %}
+
+{# Filter Bar #}
+<form method="GET" class="filter-bar" style="margin-bottom:16px;">
+  <div class="filter-row">
+    <div class="filter-group">
+      <label>Dari Tanggal</label>
+      <input type="date" name="date_from" value="{{ date_from }}">
+    </div>
+    <div class="filter-group">
+      <label>Sampai Tanggal</label>
+      <input type="date" name="date_to" value="{{ date_to }}">
+    </div>
+    <div class="filter-group">
+      <label>Cari Nama</label>
+      <input type="text" name="search" value="{{ search }}" placeholder="Nama karyawan...">
+    </div>
+    {% if area_list %}
+    <div class="filter-group">
+      <label>Area</label>
+      <select name="area">
+        <option value="">Semua Area</option>
+        {% for area in area_list %}
+        <option value="{{ area }}" {% if area == area_filter %}selected{% endif %}>{{ area }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    {% endif %}
+    <div class="filter-group" style="justify-content:flex-end;">
+      <button type="submit" class="btn btn-primary btn-sm">Cari</button>
+      <a href="{{ url_for('absensi_list') }}" class="btn btn-ghost btn-sm">Reset</a>
+    </div>
+  </div>
+</form>
+
+{# Ringkasan per area (hanya untuk role tertentu) #}
+{% if area_summary %}
+<div class="stat-grid" style="margin-bottom:20px;">
+  {% for area, data in area_summary.items() %}
+  <div class="stat-card info">
+    <div class="stat-label">{{ area }}</div>
+    <div class="stat-value" style="font-size:18px;">Total: {{ data.total }}</div>
+    <div class="stat-sub">Hadir: {{ data.hadir }} · Izin: {{ data.izin }} · Sakit: {{ data.sakit }} · Alpha: {{ data.alpha }}</div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{# Tabel Data Absensi #}
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Tanggal</th>
+          <th>Nama Karyawan</th>
+          <th>Jam Masuk</th>
+          <th>Jam Keluar</th>
+          <th>Status</th>
+          <th>Keterangan</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for a in absensi_hari %}
+        <tr>
+          <td>{{ loop.index }}</td>
+          <td>{{ a.tanggal }}</td>
+          <td>{{ a.nama_karyawan or a.nama or '?' }}</td>
+          <td>{{ a.jam_masuk or '-' }}</td>
+          <td>{{ a.jam_keluar or '-' }}</td>
+          <td>
+            <span class="badge 
+              {% if a.status == 'hadir' %}badge-hadir
+              {% elif a.status == 'izin' %}badge-izin
+              {% elif a.status == 'sakit' %}badge-sakit
+              {% elif a.status == 'alpha' %}badge-absen
+              {% else %}badge-pending{% endif %}">
+              {{ a.status|upper }}
+            </span>
+          </td>
+          <td>{{ a.keterangan or a.keterangan_checkout or '-' }}</td>
+        </tr>
+        {% else %}
+        <tr class="text-center">
+          <td colspan="7">Tidak ada data absensi untuk filter ini</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{# Informasi wilayah (opsional) #}
+<div style="margin-top:16px; font-size:10px; color:var(--text-muted); text-align:center;">
+  Role: {{ wilayah_info.role }} | Area: {{ wilayah_info.area }} | WOK ID: {{ wilayah_info.wok_id }} | GML ID: {{ wilayah_info.gml_id }}
+</div>
+
+{% endblock %}

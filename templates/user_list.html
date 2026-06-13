@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% block title %}Manajemen Pengguna{% endblock %}
+{% block page_title %}Daftar Pengguna{% endblock %}
+{% block breadcrumb %}Manajemen / Pengguna{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-header">
+    <div class="card-title">Filter Pengguna</div>
+  </div>
+  <div class="filter-bar">
+    <form method="GET" action="{{ url_for('user_list') }}" class="filter-row">
+      <div class="filter-group">
+        <label>Cari (Nama/Username)</label>
+        <input type="text" name="search" value="{{ search }}" placeholder="Ketik nama atau username...">
+      </div>
+      <div class="filter-group">
+        <label>Role</label>
+        <select name="role">
+          <option value="">Semua Role</option>
+          {% for r in role_list %}
+          <option value="{{ r }}" {% if role_filter == r %}selected{% endif %}>{{ r }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="filter-group">
+        <label>WOK</label>
+        <select name="wok">
+          <option value="">Semua WOK</option>
+          {% for w in wok_list %}
+          <option value="{{ w }}" {% if wok_filter == w %}selected{% endif %}>{{ w }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="filter-group" style="flex-direction:row; gap:8px;">
+        <button type="submit" class="btn btn-primary btn-sm">Filter</button>
+        <a href="{{ url_for('user_list') }}" class="btn btn-ghost btn-sm">Reset</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <div class="card-title">Daftar Pengguna</div>
+    <a href="{{ url_for('user_tambah') }}" class="btn btn-primary btn-sm">+ Tambah User</a>
+  </div>
+  <div class="table-wrap">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Username</th>
+          <th>Nama</th>
+          <th>Role</th>
+          <th>WOK</th>
+          <th>Status</th>
+          <th>Aksi</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in users %}
+        <tr>
+          <td>{{ loop.index }}</td>
+          <td>{{ u.username }}</td>
+          <td>{{ u.nama or '-' }}</td>
+          <td>
+            <select class="role-select" data-id="{{ u._id }}" data-current="{{ u.role }}">
+              {% for r in role_list %}
+              <option value="{{ r }}" {% if u.role == r %}selected{% endif %}>{{ r }}</option>
+              {% endfor %}
+            </select>
+          </td>
+          <td>{{ u.wok or '-' }}</td>
+          <td>
+            {% if u.is_locked %}
+            <span class="badge badge-danger">Terkunci</span>
+            {% else %}
+            <span class="badge badge-success">Aktif</span>
+            {% endif %}
+           </td>
+          <td>
+            <button class="btn btn-sm btn-warning toggle-lock" data-id="{{ u._id }}" data-locked="{{ u.is_locked|default(False)|lower }}">
+              {% if u.is_locked %}🔓 Buka Kunci{% else %}🔒 Kunci{% endif %}
+            </button>
+            <button class="btn btn-sm btn-primary update-role" data-id="{{ u._id }}">Ubah Role</button>
+           </td>
+         </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+  // Toggle lock/unlock
+  document.querySelectorAll('.toggle-lock').forEach(btn => {
+    btn.addEventListener('click', async function() {
+      const userId = this.dataset.id;
+      const res = await fetch(`/user/toggle-lock/${userId}`, { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        alert(data.message);
+        location.reload();
+      } else {
+        alert('Gagal: ' + data.message);
+      }
+    });
+  });
+
+  // Update role
+  document.querySelectorAll('.update-role').forEach(btn => {
+    btn.addEventListener('click', async function() {
+      const userId = this.dataset.id;
+      const select = document.querySelector(`.role-select[data-id="${userId}"]`);
+      const newRole = select.value;
+      const res = await fetch(`/user/update-role/${userId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role: newRole })
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert(data.message);
+        location.reload();
+      } else {
+        alert('Gagal: ' + data.message);
+      }
+    });
+  });
+</script>
+{% endblock %}

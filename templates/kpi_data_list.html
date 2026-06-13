@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Daftar Sheet KPI – {{ bulan_label }} {{ year }} {{ wok }}{% endblock %}
+{% block page_title %}Daftar Sheet Excel{% endblock %}
+{% block breadcrumb %}KPI / Data / Daftar Sheet{% endblock %}
+
+{% block extra_style %}
+<style>
+  .sheet-table { width: 100%; border-collapse: collapse; }
+  .sheet-table th, .sheet-table td { border: 1px solid var(--border); padding: 10px 12px; }
+  .sheet-table th { background: var(--bg-hover); font-family: var(--font-mono); font-size: 10px; text-transform: uppercase; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-4">
+  <div>
+    <div class="page-title">Daftar Sheet Excel</div>
+    <div class="page-desc">{{ bulan_label }} {{ year }} · WOK {{ wok }}</div>
+  </div>
+  <a href="{{ url_for('kpi') }}" class="btn btn-ghost btn-sm">← Dashboard</a>
+</div>
+
+<form method="get" action="{{ url_for('kpi_data') }}" class="filter-bar card" style="padding:14px 18px; margin-bottom:20px;">
+  <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end;">
+    <div class="filter-group"><label>Bulan</label><select name="month">{% for num,nama in months_list %}<option value="{{ num }}" {% if num==month %}selected{% endif %}>{{ nama }}</option>{% endfor %}</select></div>
+    <div class="filter-group"><label>Tahun</label><input type="number" name="year" value="{{ year }}" style="width:90px;"></div>
+    <div class="filter-group"><label>WOK</label><select name="wok">{% for w in wok_list %}<option value="{{ w }}" {% if w==wok %}selected{% endif %}>{{ w }}</option>{% endfor %}</select></div>
+    <div><button type="submit" class="btn btn-primary btn-sm">Filter</button></div>
+  </div>
+</form>
+
+{% if sheets %}
+<div class="card">
+  <div class="table-wrap">
+    <table class="sheet-table">
+      <thead><tr><th>#</th><th>Nama Sheet</th><th>Jumlah Baris</th><th>Jumlah Kolom</th><th>Aksi</th></tr></thead>
+      <tbody>
+        {% for s in sheets %}
+        <tr>
+          <td>{{ loop.index }}</td>
+          <td><strong>{{ s.sheet_name }}</strong></td>
+          <td>{{ s.total_rows }}</td>
+          <td>{{ s.total_cols }}</td>
+          <td><a href="{{ url_for('kpi_data', sheet=s.sheet_name, month=month, year=year, wok=wok) }}" class="btn btn-sm btn-primary">Lihat Data</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% else %}
+<div class="alert alert-warning">⚠ Tidak ada sheet untuk periode ini. Silakan upload file Excel terlebih dahulu.</div>
+{% endif %}
+{% endblock %}

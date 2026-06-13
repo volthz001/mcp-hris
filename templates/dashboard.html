@@ -1,0 +1,341 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — PT. Mega Creative Promosindo{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+{% block breadcrumb %}Beranda{% endblock %}
+
+{% block extra_style %}
+<style>
+  /* ── Welcome banner ── */
+  .welcome-banner {
+    background: linear-gradient(135deg, #141720 0%, #1c2235 100%);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: var(--radius);
+    padding: 20px 24px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .welcome-name  { font-size: 18px; font-weight: 700; color: var(--text-primary); }
+  .welcome-role  {
+    font-family: var(--font-mono); font-size: 10px; letter-spacing: 2px;
+    color: var(--accent); background: var(--accent-dim);
+    padding: 3px 10px; border-radius: 3px; margin-top: 4px;
+    display: inline-block;
+  }
+  .welcome-date  { font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); }
+
+  /* ── Notif bar ── */
+  .notif-bar {
+    display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px;
+  }
+  .notif-chip {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 8px 14px; border-radius: var(--radius);
+    font-size: 12px; font-weight: 600;
+    text-decoration: none; transition: opacity .15s;
+  }
+  .notif-chip:hover { opacity: .8; }
+  .notif-chip.msg   { background: var(--blue-dim); color: var(--blue); border: 1px solid rgba(59,130,246,.25); }
+  .notif-chip.notif { background: var(--accent-dim); color: var(--accent); border: 1px solid rgba(245,158,11,.25); }
+  .notif-chip .cnt  {
+    background: currentColor; color: var(--bg-base);
+    border-radius: 10px; padding: 1px 7px; font-size: 10px;
+  }
+
+  /* ── Quick stats ── */
+  .qs-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 14px;
+    margin-bottom: 20px;
+  }
+  .qs-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px 20px;
+    position: relative; overflow: hidden;
+    text-decoration: none;
+    display: block;
+    transition: background .15s;
+  }
+  .qs-card:hover { background: var(--bg-hover); }
+  .qs-card::before {
+    content: ''; position: absolute;
+    top: 0; left: 0; right: 0; height: 2px;
+  }
+  .qs-card.amber::before { background: var(--accent); }
+  .qs-card.green::before { background: var(--green); }
+  .qs-card.blue::before  { background: var(--blue); }
+  .qs-card.red::before   { background: var(--red); }
+  .qs-icon  { font-size: 22px; margin-bottom: 8px; }
+  .qs-label { font-size: 10px; color: var(--text-muted); font-family: var(--font-mono); letter-spacing: 1px; text-transform: uppercase; }
+  .qs-value { font-size: 28px; font-weight: 700; margin-top: 4px; letter-spacing: -1px; }
+  .qs-card.amber .qs-value { color: var(--accent); }
+  .qs-card.green .qs-value { color: var(--green); }
+  .qs-card.blue  .qs-value { color: var(--blue); }
+  .qs-card.red   .qs-value { color: var(--red); }
+  .qs-sub   { font-size: 11px; color: var(--text-muted); margin-top: 3px; }
+
+  /* ── Menu grid ── */
+  .menu-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 14px;
+    margin-bottom: 20px;
+  }
+  .menu-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    text-decoration: none;
+    display: flex; flex-direction: column; gap: 8px;
+    transition: all .15s;
+  }
+  .menu-card:hover {
+    background: var(--bg-hover);
+    border-color: var(--accent);
+    transform: translateY(-1px);
+  }
+  .menu-card .m-icon { font-size: 24px; }
+  .menu-card .m-title { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+  .menu-card .m-desc  { font-size: 12px; color: var(--text-secondary); line-height: 1.5; }
+  .menu-card .m-arrow { font-size: 12px; color: var(--text-muted); margin-top: auto; }
+
+  /* ── Info row ── */
+  .info-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+  }
+  @media (max-width: 768px) {
+    .info-row { grid-template-columns: 1fr; }
+    .qs-grid  { grid-template-columns: 1fr 1fr; }
+    .menu-grid{ grid-template-columns: 1fr 1fr; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+
+{# ── Welcome Banner ── #}
+<div class="welcome-banner">
+  <div>
+    <div class="welcome-name">
+      Selamat Datang, {{ (user.nama if user and user.nama else session.name) or 'User' }} 👋
+    </div>
+    <span class="welcome-role">
+      {{ session.role or 'SF' }}{% if session.wok %} · {{ session.wok }}{% endif %}
+    </span>
+  </div>
+  <div class="welcome-date">
+    {{ today.strftime('%A, %d %B %Y') if today else '' }}
+  </div>
+</div>
+
+{# ── Notif chips ── #}
+{% if msg_unread > 0 or notif_unread > 0 %}
+<div class="notif-bar">
+  {% if msg_unread > 0 %}
+  <a href="{{ url_for('messages_inbox') }}" class="notif-chip msg">
+    💬 Pesan masuk <span class="cnt">{{ msg_unread }}</span>
+  </a>
+  {% endif %}
+  {% if notif_unread > 0 %}
+  <a href="{{ url_for('notifications_list') }}" class="notif-chip notif">
+    🔔 Notifikasi baru <span class="cnt">{{ notif_unread }}</span>
+  </a>
+  {% endif %}
+</div>
+{% endif %}
+
+{# ── Quick Stats ── #}
+<div class="qs-grid">
+  <a href="{{ url_for('kasbon_list') }}?status=pending" class="qs-card amber">
+    <div class="qs-icon">💳</div>
+    <div class="qs-label">Kasbon Pending</div>
+    <div class="qs-value">{{ total_kasbon_pending }}</div>
+    <div class="qs-sub">Menunggu persetujuan</div>
+  </a>
+
+  <a href="{{ url_for('kasbon_list') }}" class="qs-card blue">
+    <div class="qs-icon">📋</div>
+    <div class="qs-label">Kasbon Bulan Ini</div>
+    <div class="qs-value">{{ total_kasbon_bulan }}</div>
+    <div class="qs-sub">Total pengajuan</div>
+  </a>
+
+  <a href="{{ url_for('absensi_list') }}" class="qs-card green">
+    <div class="qs-icon">✅</div>
+    <div class="qs-label">Absensi Hari Ini</div>
+    <div class="qs-value">{{ total_absensi_hari }}</div>
+    <div class="qs-sub">Record tercatat</div>
+  </a>
+
+{% if session.role in ['VP','MGL'] %}
+  <a href="{{ url_for('kpi') }}" class="qs-card amber">
+    <div class="qs-icon">📊</div>
+    <div class="qs-label">PS Bulan Ini</div>
+    <div class="qs-value">{{ total_ps_bulan }}</div>
+    <div class="qs-sub">Pasang baru</div>
+  </a>
+{%endif%}
+  {% if msg_unread > 0 %}
+  <a href="{{ url_for('messages_inbox') }}" class="qs-card blue">
+    <div class="qs-icon">💬</div>
+    <div class="qs-label">Pesan Belum Dibaca</div>
+    <div class="qs-value">{{ msg_unread }}</div>
+    <div class="qs-sub">Di kotak masuk</div>
+  </a>
+  {% endif %}
+
+  {% if notif_unread > 0 %}
+  <a href="{{ url_for('notifications_list') }}" class="qs-card red">
+    <div class="qs-icon">🔔</div>
+    <div class="qs-label">Notifikasi Baru</div>
+    <div class="qs-value">{{ notif_unread }}</div>
+    <div class="qs-sub">Belum dibaca</div>
+  </a>
+  {% endif %}
+</div>
+
+{# ── Menu Cepat ── #}
+<div class="card mb-6">
+  <div class="card-header">
+    <div class="card-title">Menu Cepat</div>
+    <div class="card-subtitle">Akses fitur utama sistem</div>
+  </div>
+  <div class="menu-grid">
+
+    <a href="{{ url_for('kasbon_list') }}" class="menu-card">
+      <div class="m-icon">💳</div>
+      <div class="m-title">Kasbon</div>
+      <div class="m-desc">Kelola pengajuan kasbon dan status persetujuan</div>
+      <div class="m-arrow">→ Lihat kasbon</div>
+    </a>
+    
+  {% if session.role in ['VP'] %}
+    <a href="{{ url_for('absensi_list') }}" class="menu-card">
+      <div class="m-icon">📅</div>
+      <div class="m-title">Absensi</div>
+      <div class="m-desc">Rekap kehadiran harian Sales Force</div>
+      <div class="m-arrow">→ Lihat absensi</div>
+    </a>
+  {%endif%}
+  
+  {% if session.role in ['VP','GML'] %}
+    <a href="{{ url_for('kpi') }}" class="menu-card">
+      <div class="m-icon">📈</div>
+      <div class="m-title">KPI Dashboard</div>
+      <div class="m-desc">Monitoring PS, DJP, dan performa per TL & SF</div>
+      <div class="m-arrow">→ Lihat KPI</div>
+    </a>
+    {%endif%}
+    
+  {% if session.role in ['VP','GML'] %}
+    <a href="{{ url_for('kpi_upload') }}" class="menu-card">
+      <div class="m-icon">⬆</div>
+      <div class="m-title">Upload KPI</div>
+      <div class="m-desc">Upload file Excel monitoring bulanan ke MongoDB</div>
+      <div class="m-arrow">→ Upload data</div>
+    </a>
+    {%endif%}
+    {% if session.role in ['VP','GML'] %}
+    <a href="{{ url_for('report_harian') }}" class="menu-card">
+      <div class="m-icon">📄</div>
+      <div class="m-title">Laporan Harian</div>
+      <div class="m-desc">Ringkasan absensi dan kasbon per tanggal</div>
+      <div class="m-arrow">→ Lihat laporan</div>
+    </a>
+     {%endif%}
+    <a href="{{ url_for('messages_inbox') }}" class="menu-card">
+      <div class="m-icon">💬</div>
+      <div class="m-title">Pesan</div>
+      <div class="m-desc">Kirim & terima pesan antar pengguna sistem</div>
+      <div class="m-arrow">→ Buka pesan</div>
+    </a>
+
+    <a href="{{ url_for('notifications_list') }}" class="menu-card">
+      <div class="m-icon">🔔</div>
+      <div class="m-title">Notifikasi</div>
+      <div class="m-desc">Pengumuman dan broadcast dari atasan</div>
+      <div class="m-arrow">→ Lihat notifikasi</div>
+    </a>
+
+    {% if session.role in ['VP', 'GML'] %}
+    <a href="{{ url_for('user_list') }}" class="menu-card">
+      <div class="m-icon">👥</div>
+      <div class="m-title">Manajemen User</div>
+      <div class="m-desc">Tambah, edit, dan kelola akun pengguna</div>
+      <div class="m-arrow">→ Kelola user</div>
+    </a>
+    {% endif %}
+  </div>
+</div>
+
+{# ── Info Row: Session + Tanggal ── #}
+<div class="info-row">
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">Info Akun</div>
+    </div>
+    <table>
+      <tbody>
+        <tr>
+          <td class="muted" style="width:40%">Nama</td>
+          <td><strong>{{ user.nama if user else session.name }}</strong></td>
+        </tr>
+        <tr>
+          <td class="muted">Username</td>
+          <td class="text-mono">{{ user.username if user else session.username }}</td>
+        </tr>
+        <tr>
+          <td class="muted">Role</td>
+          <td>
+            <span class="badge badge-approved">{{ session.role or 'SF' }}</span>
+          </td>
+        </tr>
+        <tr>
+          <td class="muted">WOK</td>
+          <td>{{ session.wok or '—' }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">Ringkasan Hari Ini</div>
+      <div class="card-subtitle">{{ today.strftime('%d %B %Y') if today else '' }}</div>
+    </div>
+    {% if session.role in ['VP', 'GML'] %}
+    <div style="display:flex;flex-direction:column;gap:12px;padding-top:4px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-size:13px;color:var(--text-secondary);">Absensi tercatat</span>
+        <span class="number" style="font-size:18px;font-weight:700;color:var(--green);">{{ total_absensi_hari }}</span>
+      </div>
+      
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-size:13px;color:var(--text-secondary);">Kasbon pending</span>
+        <span class="number" style="font-size:18px;font-weight:700;color:var(--accent);">{{ total_kasbon_pending }}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-size:13px;color:var(--text-secondary);">PS bulan ini</span>
+        <span class="number" style="font-size:18px;font-weight:700;color:var(--blue);">{{ total_ps_bulan }}</span>
+      </div>
+       {%endif%}
+      <div style="display:flex;justify-content:space-between;align-items:center;padding-top:8px;border-top:1px solid var(--border);">
+        <a href="{{ url_for('kpi') }}" class="btn btn-ghost btn-sm" style="width:100%;justify-content:center;">
+          Lihat Detail KPI →
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

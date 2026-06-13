@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+{% block title %}Notifikasi{% endblock %}
+
+{% block extra_style %}
+<style>
+  .notif-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 20px; flex-wrap: wrap; gap: 10px;
+  }
+  .notif-list { display: flex; flex-direction: column; gap: 10px; }
+  .notif-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 20px;
+    display: flex; gap: 14px; align-items: flex-start;
+    transition: box-shadow .15s, transform .15s;
+    position: relative; overflow: hidden;
+  }
+  .notif-card:hover { box-shadow: var(--shadow, 0 4px 20px rgba(0,0,0,.3)); transform: translateY(-1px); }
+  .notif-card.unread {
+    border-left: 3px solid var(--accent);
+    background: var(--accent-dim, rgba(245,158,11,.07));
+  }
+  .notif-card.unread.red  { border-left-color: var(--red); background: var(--red-dim, rgba(239,68,68,.07)); }
+  .notif-card.unread.blue { border-left-color: var(--blue); background: var(--blue-dim, rgba(77,156,255,.07)); }
+  .notif-icon {
+    width: 38px; height: 38px; border-radius: 50%; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+    background: var(--accent-dim); border: 1.5px solid rgba(245,158,11,.3);
+  }
+  .notif-icon.red  { background: var(--red-dim);  border-color: rgba(239,68,68,.3); }
+  .notif-icon.blue { background: var(--blue-dim); border-color: rgba(77,156,255,.3); }
+  .notif-body { flex: 1; min-width: 0; }
+  .notif-title {
+    font-size: 14px; font-weight: 600; color: var(--text-primary);
+    margin-bottom: 4px;
+  }
+  .notif-isi {
+    font-size: 13px; color: var(--text-secondary);
+    line-height: 1.5; white-space: pre-wrap;
+  }
+  .notif-meta {
+    display: flex; align-items: center; gap: 10px;
+    margin-top: 8px; flex-wrap: wrap;
+  }
+  .notif-time {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px; color: var(--text-muted);
+  }
+  .notif-badge {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px; font-weight: 600; padding: 2px 8px;
+    border-radius: 4px; letter-spacing: .5px;
+  }
+  .notif-badge.normal   { background: var(--green-dim, rgba(16,185,129,.1));  color: var(--green); }
+  .notif-badge.penting  { background: var(--accent-dim); color: var(--accent); }
+  .notif-badge.mendesak { background: var(--red-dim);    color: var(--red); }
+  .notif-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--accent); flex-shrink: 0; margin-top: 6px;
+  }
+  .notif-dot.hidden-dot { visibility: hidden; }
+
+  .notif-empty {
+    text-align: center; padding: 60px 20px;
+    color: var(--text-muted); font-size: 14px;
+  }
+  .notif-empty .icon { font-size: 48px; opacity: .25; margin-bottom: 14px; }
+
+  /* Pagination */
+  .pagination { display: flex; gap: 6px; margin-top: 20px; justify-content: center; }
+  .page-btn {
+    padding: 6px 14px; border-radius: 6px; font-size: 12px;
+    border: 1px solid var(--border); background: var(--bg-card);
+    color: var(--text-secondary); text-decoration: none; cursor: pointer;
+    font-family: 'IBM Plex Mono', monospace; transition: all .15s;
+  }
+  .page-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .page-btn.active { background: var(--accent); color: #000; border-color: var(--accent); font-weight: 700; }
+  .page-btn.disabled { opacity: .4; pointer-events: none; }
+</style>
+{% endblock %}
+
+{% block page_title %}Notifikasi{% endblock %}
+{% block breadcrumb %}Komunikasi / Notifikasi{% endblock %}
+
+{% block content %}
+
+<div class="notif-header">
+  <div>
+    <div class="page-title">🔔 Notifikasi</div>
+    <div class="page-desc">{{ total }} notifikasi ditemukan</div>
+  </div>
+  {% if session.get('role') in ['VP','GML'] %}
+  <a href="{{ url_for('notifications_send') }}" class="btn btn-primary">
+    ✉ Kirim Notifikasi
+  </a>
+  {% endif %}
+</div>
+
+{% if show_form %}
+<div class="notif-card" style="flex-direction:column;align-items:stretch;gap:14px;margin-bottom:20px;">
+  <div class="notif-title" style="font-size:15px;">✉ Kirim Notifikasi Baru</div>
+  <form method="POST" action="{{ url_for('notifications_send') }}" style="display:flex;flex-direction:column;gap:14px;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="form-group">
+      <label>Judul <span style="color:var(--red)">*</span></label>
+      <input type="text" name="judul" maxlength="200" required
+             style="width:100%;padding:8px 10px;background:var(--bg-base);border:1px solid var(--border);
+                    border-radius:6px;color:var(--text-primary);">
+    </div>
+    <div class="form-group">
+      <label>Isi <span style="color:var(--red)">*</span></label>
+      <textarea name="isi" required maxlength="2000" style="width:100%;min-height:100px;padding:8px 10px;
+                background:var(--bg-base);border:1px solid var(--border);border-radius:6px;
+                color:var(--text-primary);"></textarea>
+    </div>
+    <div class="form-group">
+      <label>Prioritas</label>
+      <select name="prioritas" style="width:100%;padding:8px 10px;background:var(--bg-base);
+              border:1px solid var(--border);border-radius:6px;color:var(--text-primary);">
+        <option value="normal">Normal</option>
+        <option value="penting">⚠ Penting</option>
+        <option value="mendesak">🔴 Mendesak</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Tujuan</label>
+      <select id="targetSelect" name="target" onchange="document.getElementById('targetUsersWrap').style.display = this.value === 'specific' ? 'block' : 'none';"
+              style="width:100%;padding:8px 10px;background:var(--bg-base);border:1px solid var(--border);
+                     border-radius:6px;color:var(--text-primary);">
+        <option value="all">Semua User</option>
+        <option value="specific">User Tertentu</option>
+      </select>
+    </div>
+    <div class="form-group" id="targetUsersWrap" style="display:none;">
+      <label>Pilih User</label>
+      <select name="target_ids" multiple size="6" style="width:100%;padding:8px 10px;background:var(--bg-base);
+              border:1px solid var(--border);border-radius:6px;color:var(--text-primary);">
+        {% for u in all_users %}
+        <option value="{{ u._id }}">{{ u.nama }} — {{ u.role or u.jabatan or '' }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div style="display:flex;gap:10px;">
+      <button type="submit" class="btn btn-primary">📤 Kirim Notifikasi</button>
+      <a href="{{ url_for('notifications_list') }}" class="btn btn-ghost">Batal</a>
+    </div>
+  </form>
+</div>
+{% endif %}
+
+<div class="notif-list">
+  {% if notifs %}
+    {% for n in notifs %}
+    {% set p = n.get('prioritas','normal') %}
+    {% set color = 'red' if p == 'mendesak' else ('blue' if p == 'penting' else '') %}
+    <div class="notif-card {% if not n.is_read %}unread {{ color }}{% endif %}">
+      <div class="notif-icon {{ color }}">
+        {% if p == 'mendesak' %}🔴{% elif p == 'penting' %}⚠{% else %}🔔{% endif %}
+      </div>
+      <div class="notif-body">
+        <div class="notif-title">{{ n.judul }}</div>
+        <div class="notif-isi">{{ n.isi }}</div>
+        <div class="notif-meta">
+          <span class="notif-time">{{ n.time_fmt }}</span>
+          <span class="notif-badge {{ p }}">{{ p|upper }}</span>
+          {% if n.from_nama %}
+          <span class="notif-time">dari {{ n.from_nama }}</span>
+          {% endif %}
+        </div>
+      </div>
+      <div class="notif-dot {% if n.is_read %}hidden-dot{% endif %}"></div>
+    </div>
+    {% endfor %}
+  {% else %}
+    <div class="notif-empty">
+      <div class="icon">🔕</div>
+      <div>Tidak ada notifikasi untuk Anda</div>
+    </div>
+  {% endif %}
+</div>
+
+{% if pages > 1 %}
+<div class="pagination">
+  <a class="page-btn {% if page <= 1 %}disabled{% endif %}"
+     href="?page={{ page - 1 }}">← Prev</a>
+  {% for p in range(1, pages + 1) %}
+  <a class="page-btn {% if p == page %}active{% endif %}"
+     href="?page={{ p }}">{{ p }}</a>
+  {% endfor %}
+  <a class="page-btn {% if page >= pages %}disabled{% endif %}"
+     href="?page={{ page + 1 }}">Next →</a>
+</div>
+{% endif %}
+
+{% endblock %}

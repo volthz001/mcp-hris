@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block title %}Kasbon Saya{% endblock %}
+{% block page_title %}Kasbon Saya{% endblock %}
+{% block breadcrumb %}Kasbon / Kasbon Saya{% endblock %}
+
+{% block content %}
+<div class="flex justify-between items-center mb-4">
+  <div>
+    <div class="page-title">📋 Riwayat Kasbon</div>
+    <div class="page-desc">Data pengajuan kasbon Anda</div>
+  </div>
+  <a href="{{ url_for('kasbon_tambah') }}" class="btn btn-primary btn-sm">+ Ajukan Kasbon Baru</a>
+</div>
+
+<!-- Statistik Ringkasan -->
+<div class="stat-grid" style="grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); margin-bottom: 20px;">
+  <div class="stat-card blue">
+    <div class="stat-label">Total Pengajuan</div>
+    <div class="stat-value">{{ stats.total }}</div>
+  </div>
+  <div class="stat-card accent">
+    <div class="stat-label">Pending</div>
+    <div class="stat-value">{{ stats.pending }}</div>
+  </div>
+  <div class="stat-card green">
+    <div class="stat-label">Disetujui</div>
+    <div class="stat-value">{{ stats.approved }}</div>
+  </div>
+  <div class="stat-card red">
+    <div class="stat-label">Ditolak</div>
+    <div class="stat-value">{{ stats.rejected }}</div>
+  </div>
+  <div class="stat-card info">
+    <div class="stat-label">Total Nominal Cair</div>
+    <div class="stat-value" style="font-size: 18px;">{{ "{:,.0f}".format(stats.total_nominal) }}</div>
+  </div>
+</div>
+
+<!-- Filter Form -->
+<div class="filter-bar">
+  <form method="GET" action="{{ url_for('kasbon_saya') }}" class="filter-row">
+    <div class="filter-group">
+      <label>Bulan</label>
+      <select name="bulan">
+        <option value="">Semua Bulan</option>
+        {% for num, nama in months_list %}
+        <option value="{{ num }}" {% if num == filter_bulan %}selected{% endif %}>{{ nama }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="filter-group">
+      <label>Tahun</label>
+      <input type="number" name="tahun" value="{{ filter_tahun or tahun_sekarang }}" min="2020" max="2030">
+    </div>
+    <div class="filter-group">
+      <label>Status</label>
+      <select name="status">
+        <option value="">Semua Status</option>
+        <option value="pending" {% if filter_status == 'pending' %}selected{% endif %}>Pending</option>
+        <option value="approved" {% if filter_status == 'approved' %}selected{% endif %}>Disetujui</option>
+        <option value="rejected" {% if filter_status == 'rejected' %}selected{% endif %}>Ditolak</option>
+      </select>
+    </div>
+    <div class="filter-group" style="justify-content: flex-end;">
+      <button type="submit" class="btn btn-primary btn-sm">Filter</button>
+      <a href="{{ url_for('kasbon_saya') }}" class="btn btn-ghost btn-sm">Reset</a>
+    </div>
+  </form>
+</div>
+
+<!-- Tabel Daftar Kasbon -->
+<div class="card">
+  <div class="card-header">
+    <div class="card-title">Daftar Pengajuan Kasbon</div>
+    <div class="card-subtitle">Menampilkan {{ items|length }} data</div>
+  </div>
+  <div class="table-wrap">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Tanggal Pengajuan</th>
+          <th>Jumlah (Rp)</th>
+          <th>Keperluan</th>
+          <th>Status</th>
+          <th>Disetujui Oleh</th>
+          <th>Tanggal Approve</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for k in items %}
+        <tr>
+          <td>{{ loop.index }}</td>
+          <td>{{ k.created_at.strftime('%d/%m/%Y %H:%M') if k.created_at else '-' }}</td>
+          <td class="text-right">{{ "{:,.0f}".format(k.nominal) }}</td>
+          <td>{{ k.keterangan or '-' }}</td>
+          <td>
+            <span class="badge badge-{{ k.status }}">
+              {{ k.status | upper }}
+            </span>
+          </td>
+          <td>{{ k.approved_by or '-' }}</td>
+          <td>{{ k.approved_at.strftime('%d/%m/%Y') if k.approved_at else '-' }}</td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="7" style="text-align: center;">Belum ada pengajuan kasbon.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

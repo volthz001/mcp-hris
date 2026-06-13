@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block title %}Upload Excel{% endblock %}
+{% block page_title %}Upload Excel ke MongoDB{% endblock %}
+{% block breadcrumb %}Data Excel{% endblock %}
+
+{% block content %}
+
+<div class="card">
+    <div class="card-header">
+        <div>
+            <div class="card-title">Upload Data Excel</div>
+            <div class="card-subtitle">Konversi file Excel ke MongoDB</div>
+        </div>
+    </div>
+
+    <form method="POST" action="{{ url_for('upload_excel') }}" enctype="multipart/form-data">
+
+        <div class="form-group">
+            <label>Pilih File Excel</label>
+            <input type="file" name="file" accept=".xlsx,.xls" required>
+        </div>
+
+        <div class="form-group">
+            <label>Pilih Tabel</label>
+            <select name="table" required>
+                <option value="bali">Bali</option>
+                <option value="bandung">Bandung</option>
+                <option value="depok">Depok</option>
+            </select>
+        </div>
+
+        <button type="submit" class="btn btn-primary">
+            Upload & Simpan
+        </button>
+
+    </form>
+</div>
+
+{% endblock %}
