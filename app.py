@@ -238,9 +238,9 @@ def generate_reset_token(user_id, expires_hours=1):
     # Buat string unique: user_id + expiry + secret_key
     data = f"{user_id}|{expiry.isoformat()}"
     signature = hmac.new(
-        app.secret_key.encode('utf-8'),
-        data.encode('utf-8'),
-        hashlib.sha256
+        key=app.secret_key.encode('utf-8'),
+        msg=data.encode('utf-8'),
+        digestmod=hashlib.sha256
     ).hexdigest()
     token = f"{user_id}|{expiry.isoformat()}|{signature}"
     # Encode to base64 untuk URL safety
@@ -266,9 +266,9 @@ def verify_reset_token(token):
         # Verify signature
         data = f"{user_id}|{expiry_str}"
         expected = hmac.new(
-            app.secret_key.encode('utf-8'),
-            data.encode('utf-8'),
-            hashlib.sha256
+            key=app.secret_key.encode('utf-8'),
+            msg=data.encode('utf-8'),
+            digestmod=hashlib.sha256
         ).hexdigest()
         
         if not hmac.compare_digest(signature, expected):
@@ -926,7 +926,7 @@ def kasbon_tambah():
  
 @app.route("/kasbon/approve/<kasbon_id>", methods=["POST"])
 @login_required
-@role_required("VP")
+@role_required("VP", "GML")
 def kasbon_approve(kasbon_id):
     action = request.form.get("action", "approve")
     status = "approved" if action == "approve" else "rejected"
@@ -1018,6 +1018,7 @@ def absensi_list():
     }
 
     return render_template("absensi.html",
+        user=get_current_user(),
         absensi_hari=absensi_hari,
         date_from=date_from, date_to=date_to,
         search=search, area_list=area_list,
@@ -1278,23 +1279,48 @@ def kirim_surat():
 
 @app.route('/absensi/tambah/excel', methods=['GET', 'POST'])
 @login_required
+@role_required("VP", "GML")
 def upload_excel():
+    """Upload Excel untuk data absensi massal — hanya VP/GML."""
+    ALLOWED_TABLES = {
+        "absensi": mongo.db.absensi,
+        "kasbon":  mongo.db.kasbon,
+        "users":   mongo.db.users,
+    }
 
     if request.method == 'POST':
-        file = request.files['file']
-        table = request.form['table']
+        file = request.files.get('file')
+        table = request.form.get('table', '').strip().lower()
 
-        df = pd.read_excel(file)
-        data = df.to_dict(orient="records")
+        if not file or not table:
+            flash("File dan nama tabel wajib diisi.", "danger")
+            return redirect(url_for("upload_excel"))
 
-        col = collections.get(table)
+        if table not in ALLOWED_TABLES:
+            flash(f"Tabel '{table}' tidak diizinkan.", "danger")
+            return redirect(url_for("upload_excel"))
 
-        if col is not None:
-            col.insert_many(data)
+        # Validasi ekstensi file
+        filename = file.filename or ""
+        if not filename.lower().endswith(('.xlsx', '.xls')):
+            flash("File harus berformat .xlsx atau .xls", "danger")
+            return redirect(url_for("upload_excel"))
+
+        try:
+            df = pd.read_excel(file)
+            data = df.to_dict(orient="records")
+            col = ALLOWED_TABLES[table]
+            if data:
+                col.insert_many(data)
+                flash(f"✅ {len(data)} baris berhasil diupload ke tabel '{table}'.", "success")
+            else:
+                flash("File kosong atau tidak ada data.", "warning")
+        except Exception as e:
+            flash(f"Gagal memproses file: {str(e)}", "danger")
 
         return redirect(url_for("upload_excel"))
 
-    return render_template("excel.html")
+    return render_template("excel.html", user=get_current_user())
 """
 @app.route("/absensi/edit/<id>", methods=["GET","POST"])
 @login_required
@@ -1918,15 +1944,10 @@ def kpi():
         user = get_current_user(),
         **ctx,
     )
-@app.route('/debug-templates')
-def debug_templates():
-    import os
-    folder = os.path.join(app.root_path, 'templates')
-    files = os.listdir(folder)
-    return str(files)
+# /debug-templates dihapus — tidak boleh ada di production
 @app.route("/kpi/upload", methods=["GET", "POST"])
 @login_required
-@role_required("VP", "GML",'MGR')
+@role_required("VP", "GML", "MANAGER_WOK")
 def kpi_upload():
     if request.method == "POST":
         month = int(request.form.get("month"))
@@ -1978,7 +1999,7 @@ def kpi_upload():
 @app.route("/kpi/upload-progress/<task_id>")
 @login_required
 
-@role_required('VP','GML','MGL')
+@role_required('VP', 'GML', 'MANAGER_WOK')
 def kpi_upload_progress(task_id):
     data = upload_progress.get(task_id)
     if not data:
