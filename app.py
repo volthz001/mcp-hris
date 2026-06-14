@@ -138,27 +138,6 @@ def get_user_detail(user_id):
     tl_id = user.get("tl_id")
     
     return nama, nik, area, gml_id, wok_id, tl_id
-def measure_memory():
-    app = Flask(__name__)
-    
-    # Tanpa wrapper
-    @app.route('/msg1')
-    def msg1(): return 'ok'
-    @app.route('/msg2')  
-    def msg2(): return 'ok'
-    # Memory: ~2 * (route_object_size)
-    
-    # Dengan wrapper
-    def register_msg_routes(app, prefix):
-        @app.route(f'{prefix}/1')
-        def msg1(): return 'ok'
-        @app.route(f'{prefix}/2')
-        def msg2(): return 'ok'
-    
-    register_msg_routes(app, '/pesan')
-    register_msg_routes(app, '/notifications')  # reuse logic, minimal overhead
-    
-    return sys.getsizeof(app)  # almost same!
 # ══════════════════════════════════════════════════════════════════════════════
 # AUTH HELPERS  (TIDAK pakai Flask-Login)
 # ══════════════════════════════════════════════════════════════════════════════
@@ -232,6 +211,11 @@ def login():
             flash("Akun Anda sedang dikunci. Hubungi administrator.", "danger")
             return render_template("login.html")
 
+        # Blokir akun pending (belum diaktivasi VP/GML)
+        if user.get("status") == "pending":
+            flash("Akun Anda belum diaktivasi. Hubungi VP atau GML untuk aktivasi.", "warning")
+            return render_template("login.html")
+
         if not check_password_hash(user.get("password", ""), password):
             flash("Password salah.", "danger")
             return render_template("login.html")
@@ -298,81 +282,77 @@ def verify_reset_token(token):
 @csrf.exempt
 def register():
     """
-    Register akun baru.
-    Untuk keamanan, sebaiknya hanya VP/GML yang bisa mengakses halaman ini.
-    Tapi kita buat dengan validasi sederhana.
+    Register mandiri: karyawan daftar sendiri.
+    - Role SELALU default ke SF (tidak bisa dipilih dari form)
+    - Status akun = 'pending' — tidak bisa login sampai VP/GML aktifkan
+    - Tujuan: mencegah siapapun membuat akun VP/GML dari luar
     """
     if request.method == "POST":
-        # Ambil data dari form (bisa juga dari JSON)
         if request.is_json:
             data = request.get_json()
             username = data.get("username", "").strip()
             password = data.get("password", "").strip()
-            nama = data.get("nama", "").strip()
-            nik = data.get("nik", "").strip()
-            wok = data.get("wok", "").strip()
-            role = data.get("role", "SF").strip()
-            area = data.get("area", wok)  # default area = wok
-            gml_id = data.get("gml_id", None)
-            wok_id = data.get("wok_id", None)
-            tl_id = data.get("tl_id", None)
+            nama     = data.get("nama", "").strip()
+            nik      = data.get("nik", "").strip()
+            wok      = data.get("wok", "").strip()
+            area     = data.get("area", wok)
+            email    = data.get("email", "").strip()
         else:
-            # Form biasa
             username = request.form.get("username", "").strip()
             password = request.form.get("password", "").strip()
-            nama = request.form.get("nama", "").strip()
-            nik = request.form.get("nik", "").strip()
-            wok = request.form.get("wok", "").strip()
-            role = request.form.get("role", "SF").strip()
-            area = request.form.get("area", wok)
-            gml_id = request.form.get("gml_id", None)
-            wok_id = request.form.get("wok_id", None)
-            tl_id = request.form.get("tl_id", None)
+            nama     = request.form.get("nama", "").strip()
+            nik      = request.form.get("nik", "").strip()
+            wok      = request.form.get("wok", "").strip()
+            area     = request.form.get("area", wok)
+            email    = request.form.get("email", "").strip()
 
-        # Validasi input
+        # Validasi wajib
         if not username or not password or not nama or not nik or not wok:
             if request.is_json:
                 return jsonify({"success": False, "message": "Username, password, nama, nik, dan wok wajib diisi."}), 400
             flash("Semua field wajib diisi.", "danger")
             return render_template("register.html")
 
-        # Cek apakah username sudah ada
-        existing_user = mongo.db.users.find_one({"username": username})
-        if existing_user:
+        # Validasi panjang password
+        if len(password) < 8:
+            if request.is_json:
+                return jsonify({"success": False, "message": "Password minimal 8 karakter."}), 400
+            flash("Password minimal 8 karakter.", "danger")
+            return render_template("register.html")
+
+        # Cek username duplikat
+        if mongo.db.users.find_one({"username": username}):
             if request.is_json:
                 return jsonify({"success": False, "message": "Username sudah terdaftar."}), 400
             flash("Username sudah terdaftar.", "danger")
             return render_template("register.html")
 
-        #hashed_password = generate_password_hash(password)
-        plain_password = request.form.get("password", "").strip()
-        hashed_password = generate_password_hash(plain_password)
-        
+        hashed_password = generate_password_hash(password)
 
-        # Siapkan data user
+        # Role SELALU SF, status SELALU pending
         new_user = {
-            "username": username,
-            "password": hashed_password,
-            "nama": nama,
-            "nik": nik,
-            "wok": wok.upper(),
-            "role": role,
-            "jabatan": role,  # untuk kompatibilitas
-            "area": area,
-            "gml_id": gml_id,
-            "wok_id": wok_id,
-            "tl_id": tl_id,
-            "email": request.form.get("email", "").strip(),
-            "is_locked": False,
+            "username":   username,
+            "password":   hashed_password,
+            "nama":       nama,
+            "nik":        nik,
+            "wok":        wok.upper(),
+            "area":       area or wok.upper(),
+            "email":      email,
+            "role":       "SF",       # ← HARDCODED, tidak dari form
+            "jabatan":    "SF",
+            "is_locked":  False,
+            "status":     "pending",  # ← akun belum aktif, tunggu aktivasi VP/GML
+            "gml_id":     None,
+            "wok_id":     None,
+            "tl_id":      None,
             "created_at": datetime.now()
         }
 
-        # Insert ke MongoDB
         try:
             mongo.db.users.insert_one(new_user)
             if request.is_json:
-                return jsonify({"success": True, "message": "Registrasi berhasil. Silakan login."}), 201
-            flash("Registrasi berhasil. Silakan login.", "success")
+                return jsonify({"success": True, "message": "Registrasi berhasil. Akun menunggu aktivasi oleh admin."}), 201
+            flash("✅ Registrasi berhasil! Akun Anda sedang menunggu aktivasi oleh VP/GML sebelum bisa digunakan.", "success")
             return redirect(url_for("login"))
         except Exception as e:
             if request.is_json:
@@ -380,7 +360,6 @@ def register():
             flash(f"Gagal registrasi: {str(e)}", "danger")
             return render_template("register.html")
 
-    # GET: tampilkan form register
     return render_template("register.html")
 
 @app.route("/logout")
@@ -783,29 +762,12 @@ def messages_action():
     return jsonify({"ok": False, "msg": "Aksi tidak dikenal"}), 400
 
 
-# Helper function
-def _fmt_message_time(dt):
-    if not dt: 
-        return "—"
-    from datetime import datetime
-    diff = datetime.now() - dt
-    if diff.seconds < 60: 
-        return "Baru saja"
-    if diff.seconds < 3600: 
-        return f"{diff.seconds // 60} mnt lalu"
-    if diff.days == 0: 
-        return dt.strftime("%H:%M")
-    if diff.days == 1: 
-        return "Kemarin"
-    if diff.days < 7: 
-        return dt.strftime("%A")
-    return dt.strftime("%d/%m/%Y")
- # ══════════════════════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════════════════════
 # KASBON
 # ══════════════════════════════════════════════════════════════════════════════
 @app.route("/kasbon")
 @login_required
-@role_required("VP")
+@role_required("VP", "GML", "MANAGER_WOK", "TL", "TS", "TC", "SF")
 def kasbon_list():
     role    = session.get("role", "SF")
     uid     = session["user_id"]
@@ -906,10 +868,38 @@ def kasbon_tambah():
         keterangan = request.form.get("keterangan", "").strip()
         today    = date.today()
  
+        nominal_float = float(nominal)
+        uid_kasbon = session["user_id"]
+        LIMIT  = 500_000
+        MIN    = 50_000
+        WINDOW = 30
+
+        if nominal_float < MIN or nominal_float > LIMIT:
+            flash(f"Nominal harus antara Rp {MIN:,.0f} dan Rp {LIMIT:,.0f}.", "danger")
+            return redirect(url_for("kasbon_tambah"))
+
+        # ── Atomic check & insert menggunakan transaksi satu operasi ──
+        cutoff = datetime.now() - timedelta(days=WINDOW)
+        used_pipeline = [
+            {"$match": {
+                "user_id": uid_kasbon,
+                "status":  {"$in": ["approved", "pending"]},
+                "created_at": {"$gte": cutoff}
+            }},
+            {"$group": {"_id": None, "total": {"$sum": "$nominal"}}}
+        ]
+        agg = list(mongo.db.kasbon.aggregate(used_pipeline))
+        used_30d = agg[0]["total"] if agg else 0
+        remaining = LIMIT - used_30d
+
+        if nominal_float > remaining:
+            flash(f"Kuota tidak cukup. Sisa kuota: Rp {remaining:,.0f}.", "danger")
+            return redirect(url_for("kasbon_tambah"))
+
         mongo.db.kasbon.insert_one({
-            "user_id":    session["user_id"],
+            "user_id":    uid_kasbon,
             "nama":       session.get("name") or session.get("username", "?"),
-            "nominal":    float(nominal),
+            "nominal":    nominal_float,
             "keterangan": keterangan,
             "status":     "pending",
             "bulan":      today.month,
@@ -918,7 +908,7 @@ def kasbon_tambah():
             "approved_by": None,
             "approved_at": None,
         })
-        flash("Pengajuan kasbon berhasil.", "success")
+        flash("✅ Pengajuan kasbon berhasil. Menunggu persetujuan.", "success")
         return redirect(url_for("kasbon_list"))
  
     user_doc = get_current_user()
@@ -963,18 +953,18 @@ def absensi_list():
     uid    = session.get("user_id")
 
     # Scope filter berdasarkan role
-    if role == "VP" or role == "All":
-        flt = {}
-        """elif role == "GML":
-            flt = {"gml_id": gml_id}
-        elif role == "MANAGER_WOK":
-            flt = {"wok_id": wok_id}
-        elif role in ("TS", "TC"):
-            flt = {"area": area}
-        elif role == "TL":
-            flt = {"tl_id": uid}"""
+    if role == "VP":
+        flt = {}  # VP lihat semua
+    elif role == "GML":
+        flt = {"gml_id": gml_id} if gml_id else {}
+    elif role == "MANAGER_WOK":
+        flt = {"wok_id": wok_id} if wok_id else {"area": area}
+    elif role in ("TS", "TC"):
+        flt = {"area": area}
+    elif role == "TL":
+        flt = {"tl_id": uid}
     else:
-        flash("Akses ditolak.", "danger")
+        # SF dan role lain: redirect ke riwayat pribadi
         return redirect(url_for("absensi_history"))
 
     date_from   = request.args.get("date_from", "")
@@ -1463,13 +1453,16 @@ def user_tambah():
             flash("Username sudah dipakai.", "danger")
             return redirect(url_for("user_list"))
  
+        raw_pw = request.form.get("password", "")
         mongo.db.users.insert_one({
-            "username": username,
-            "password": request.form.get("password",""),
-            "nama":     request.form.get("nama","").strip(),
-            "role":     request.form.get("role","SF"),
-            "jabatan":  request.form.get("role","SF"),
-            "wok":      request.form.get("wok","JAKTIM"),
+            "username":   username,
+            "password":   generate_password_hash(raw_pw),  # ← hash, tidak plain text
+            "nama":       request.form.get("nama","").strip(),
+            "role":       request.form.get("role","SF"),
+            "jabatan":    request.form.get("role","SF"),
+            "wok":        request.form.get("wok","JAKTIM"),
+            "is_locked":  False,
+            "status":     "active",  # ← ditambah VP/GML = langsung aktif
             "created_at": datetime.now(),
         })
         flash("User berhasil ditambahkan.", "success")
@@ -1576,6 +1569,61 @@ def user_toggle_lock(user_id):
         return jsonify({"success": True, "message": f"Akun user {user.get('username')} berhasil {status_text}."})
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
+
+# ══════════════════════════════════════════════════════════════════════════════
+# AKTIVASI AKUN PENDING (oleh VP/GML)
+# ══════════════════════════════════════════════════════════════════════════════
+@csrf.exempt
+@app.route("/user/activate/<user_id>", methods=["POST"])
+@login_required
+@role_required("VP", "GML")
+def user_activate(user_id):
+    """Aktivasi akun karyawan yang baru registrasi mandiri (status: pending)."""
+    try:
+        data = request.get_json(silent=True) or {}
+        new_role = data.get("role", "SF").strip()
+        if new_role not in ROLE_LIST:
+            new_role = "SF"
+
+        user = mongo.db.users.find_one({"_id": ObjectId(user_id)})
+        if not user:
+            return jsonify({"success": False, "message": "User tidak ditemukan."}), 404
+
+        mongo.db.users.update_one(
+            {"_id": ObjectId(user_id)},
+            {"$set": {
+                "status":     "active",
+                "role":       new_role,
+                "jabatan":    new_role,
+                "activated_by": session.get("name") or session.get("username", "?"),
+                "activated_at": datetime.now()
+            }}
+        )
+        return jsonify({"success": True, "message": f"Akun {user.get('nama')} berhasil diaktivasi sebagai {new_role}."})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@app.route("/users/pending")
+@login_required
+@role_required("VP", "GML")
+def user_pending_list():
+    """Daftar akun pending yang menunggu aktivasi."""
+    pending_users = list(mongo.db.users.find(
+        {"status": "pending"},
+        {"password": 0}
+    ).sort("created_at", -1))
+    return render_template("user_list.html",
+        users=pending_users,
+        role_list=ROLE_LIST,
+        wok_list=WOK_LIST,
+        search="",
+        role_filter="",
+        wok_filter="",
+        show_pending=True,
+        user=get_current_user()
+    )
+
 # ══════════════════════════════════════════════════════════════════════════════
 # KPI — HELPER FUNCTIONS
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1844,6 +1892,8 @@ def change_password():
 
     return render_template("change_password.html")
 # ══════════════════════════════════════════════════════════════════════════════
+
+# ══════════════════════════════════════════════════════════════════════════════
 # KPI ROUTES  (direct @app.route — no Blueprint)
 # ══════════════════════════════════════════════════════════════════════════════
 
@@ -2016,7 +2066,6 @@ def kpi_data():
         wok_list=WOK_LIST,
         bulan_label=BULAN_NAMA[month-1]
     )
-
 
 # ── Notifications routes (missing from original) ───────────────────────────
 @app.route("/notifikasi")
