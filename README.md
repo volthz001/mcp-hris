@@ -1,133 +1,173 @@
-```markdown
-# 🏢 MCP HRIS – Sistem Informasi Manajemen Karyawan  
-**PT. Mega Creative Promosindo**
+# 🏢 MCP HRIS — Sistem Informasi Manajemen Karyawan
 
-**Laporan Kerja Praktek**  
-Diajukan sebagai salah satu syarat penyelesaian mata kuliah Kerja Praktek  
-Program Studi Teknik Informatika – Universitas Pamulang
----
+> **Kelola Karyawan Lebih Cerdas, Efisien, dan Transparan**  
+> Solusi terpadu untuk Absensi, Kasbon, KPI, dan Komunikasi Internal berbasis web.
 
-**Disusun oleh:**  
-- **Hizkia Siallagan** (NIM: **********)  
-- **Sebastianus Efraye Galdin** (NIM: **********)  
-
-**Program Studi Teknik Informatika**  
-**Fakultas Ilmu Komputer**  
-**Universitas Pamulang**  
-
-**Tahun Akademik 2025/2026**
-
-
-## 📌 Abstrak
-
-PT. Mega Creative Promosindo masih mengelola proses administrasi kepegawaian seperti pengajuan kasbon, absensi harian, dan monitoring kinerja secara manual menggunakan spreadsheet dan komunikasi via WhatsApp. Hal ini menyebabkan keterlambatan persetujuan, kesulitan dalam pelacakan riwayat, dan tidak adanya dashboard terpusat.
-
-**MCP HRIS** hadir sebagai solusi berbasis web yang mengintegrasikan:
-- Pengajuan kasbon dengan kuota rolling 30 hari
-- Absensi harian (check‑in/out, izin, sakit, auto-alpha)
-- Dashboard KPI (upload Excel, grafik interaktif, export laporan)
-- Pesan internal dan notifikasi broadcast
-
-Sistem dibangun menggunakan **Flask** (backend), **MongoDB** (database), dan **Chart.js** (visualisasi). Dengan role-based access (VP, GML, Manager WOK, TL, SF), sistem ini berhasil meningkatkan efisiensi dan transparansi data di perusahaan.
-
-**Kata kunci:** Kasbon, Absensi, KPI, Flask, MongoDB, HRIS.
-
----
-## 📸 Tampilan Sistem (Screenshot)
-
-### Dashboard Utama
-![Dashboard](images/dashboard.png)
-
-### Manajemen Kasbon – Admin
-![Kasbon Admin](images/kasbon_admin.png)
-
-### Kasbon Saya (User)
-![Kasbon User](images/kasbon_user.png)
-
-### Form Pengajuan Kasbon
-![Form Kasbon](images/kasbon_form.png)
-
-### Absensi Harian
-![Absensi](images/absensi.png)
-
-### Riwayat Absensi
-![Riwayat Absensi](images/absensi_history.png)
-
-### KPI Dashboard
-![KPI Dashboard](images/kpi_dashboard.png)
-
-### Upload Data KPI (Excel)
-![KPI Upload](images/kpi_upload.png)
-
-### Export Laporan KPI
-![KPI Export](images/kpi_export.png)
-
-### Kotak Pesan Internal
-![Pesan](images/messages.png)
-
-### Notifikasi Broadcast
-![Notifikasi](images/notifications.png)
-
-### Laporan Harian (Absensi + Kasbon)
-![Laporan Harian](images/report.png)
-
-### Manajemen Pengguna
-![User Management](images/user_management.png)
-
-### Profil & Ganti Password
-![Profil](images/profile.png)
-
-### Multi‑Theme (7 tema gelap)
-![Theme Switcher](images/themes.png)## ✨ Fitur Lengkap
-
-| Modul          | Fitur                                                                 |
-|----------------|-----------------------------------------------------------------------|
-| **Kasbon**     | Rolling limit 30 hari (Rp500.000), min Rp50.000, status pending/approved/rejected, riwayat lengkap, validasi otomatis |
-| **Absensi**    | Check‑in (08:00‑08:30), check‑out (17:00‑18:30 + keterangan), izin/sakit (08:00‑10:00), auto‑alpha setelah 18:30 |
-| **KPI**        | Upload Excel multipage (PS, DJP, Database, Absensi MB, KPI TL, Orbit, Upsell), progress real‑time, chart.js, export HTML/PDF |
-| **Pesan**      | Kirim ke user lain, tanda bintang, hapus permanen (soft delete), mark unread, priority (normal/penting/mendesak) |
-| **Notifikasi** | Broadcast ke semua user atau pilih user tertentu, prioritas, read receipt |
-| **Laporan**    | Filter tanggal range + WOK + nama, tampilkan tabel absensi dan kasbon sekaligus |
-| **Manajemen User** | Ubah role (hanya VP), kunci/buka kunci akun, filter by role/WOK |
-| **Profil**     | Edit data diri, ganti password (min 8 karakter + simbol) |
-| **Tema**       | 7 tema gelap, persistensi ke localStorage |
+[![Python](https://img.shields.io/badge/Python-3.10+-blue?logo=python)](https://python.org)
+[![Flask](https://img.shields.io/badge/Flask-2.x-lightgrey?logo=flask)](https://flask.palletsprojects.com)
+[![MongoDB](https://img.shields.io/badge/MongoDB-Atlas%2FLocal-green?logo=mongodb)](https://mongodb.com)
+[![License](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
 
 ---
 
-## 🛠 Arsitektur Sistem
+## 📌 Tentang Proyek
+
+**MCP HRIS** adalah sistem informasi manajemen karyawan berbasis web yang menggantikan proses manual (spreadsheet & WhatsApp) dengan satu platform terpadu, aman, dan mudah digunakan.
+
+Dibangun untuk membantu perusahaan dengan tim lapangan yang dinamis — khususnya di kawasan BSD City dan Tangerang Selatan — agar dapat mengelola:
+
+- ✅ **Absensi** harian dengan timestamp otomatis dan anti-manipulasi
+- ✅ **Kasbon** digital dengan approval berjenjang secara real-time
+- ✅ **KPI Dashboard** dari upload Excel yang langsung menjadi grafik interaktif
+- ✅ **Pesan Internal** terstruktur dengan prioritas dan read receipt
+
+---
+
+## 📸 Tampilan Sistem
+
+### 🖥️ Dashboard KPI
+![KPI Dashboard](https://raw.githubusercontent.com/volthz001/mcp-hris/main/images/kpi_dashboard.png)
+
+*Dashboard KPI menampilkan metrik performa tim secara real-time: Total PS, Briefing, ARPH, SF Aktif, dan grafik tren harian.*
+
+---
+
+### 📋 Absensi Harian
+![Absensi](https://raw.githubusercontent.com/volthz001/mcp-hris/main/images/absensi.png)
+
+*Halaman absensi dengan check-in/out berdasarkan waktu. Status otomatis: Hadir, Izin, Sakit, atau Alpha jika tidak ada aktivitas hingga 18:30.*
+
+---
+
+### 📜 Riwayat Absensi Karyawan
+![Riwayat Absensi](https://raw.githubusercontent.com/volthz001/mcp-hris/main/images/absensi_history.png)
+
+*Riwayat kehadiran lengkap per karyawan dengan filter tanggal & area. Dapat diekspor untuk keperluan payroll.*
+
+---
+
+### 💰 Form Pengajuan Kasbon
+![Form Kasbon](https://raw.githubusercontent.com/volthz001/mcp-hris/main/images/kasbon_form.png)
+
+*Form pengajuan kasbon digital (Rp 50.000 – Rp 500.000) dengan kuota rolling 30 hari dan validasi otomatis.*
+
+---
+
+### 👤 Dashboard Kasbon User
+![Kasbon User](https://raw.githubusercontent.com/volthz001/mcp-hris/main/images/kasbon_user.png)
+
+*Halaman pribadi karyawan untuk memantau sisa kuota, total pengajuan, dan riwayat transaksi kasbon.*
+
+---
+
+### 🛡️ Manajemen Kasbon — Admin
+![Kasbon Admin](https://raw.githubusercontent.com/volthz001/mcp-hris/main/images/kasbon_admin.png)
+
+*Panel admin untuk approval/reject pengajuan kasbon dari seluruh karyawan secara real-time.*
+
+---
+
+### 📤 Upload Data KPI (Excel)
+![KPI Upload](https://raw.githubusercontent.com/volthz001/mcp-hris/main/images/kpi_upload.png)
+
+*Interface upload file Excel (.xlsx) untuk data KPI harian. Sistem otomatis memvalidasi format sheet dan menyimpan metadata audit trail.*
+
+---
+
+### 📄 Export Laporan KPI
+![KPI Export](https://raw.githubusercontent.com/volthz001/mcp-hris/main/images/kpi_export.png)
+
+*Fitur export laporan KPI ke format PDF atau HTML dengan header resmi perusahaan dan grafik yang di-render ulang untuk print.*
+
+---
+
+### 💬 Pesan Internal
+![Pesan](https://raw.githubusercontent.com/volthz001/mcp-hris/main/images/messages.png)
+
+*Thread percakapan antar pengguna dengan label prioritas: Normal, Penting, Mendesak. Dilengkapi read receipt dan badge counter.*
+
+---
+
+### 🔔 Notifikasi Broadcast
+![Notifikasi](https://raw.githubusercontent.com/volthz001/mcp-hris/main/images/notifications.png)
+
+*Sistem notifikasi real-time. Atasan mendapat alert otomatis saat ada pengajuan baru. Broadcast bisa ditarget ke semua user atau user tertentu.*
+
+---
+
+### 📊 Laporan Harian Terpadu
+![Laporan Harian](https://raw.githubusercontent.com/volthz001/mcp-hris/main/images/report.png)
+
+*Ringkasan absensi dan kasbon dalam satu halaman. Tabel detail per karyawan lengkap dengan NIK & Area untuk rekapitulasi HR.*
+
+---
+
+### 👥 Manajemen Pengguna
+![User Management](https://raw.githubusercontent.com/volthz001/mcp-hris/main/images/user_management.png)
+
+*Panel admin untuk mengelola pengguna: filter by role/WOK/nama, kunci/buka akun, reset password. Mendukung 6 level role dengan hak akses terpisah.*
+
+---
+
+### 🎨 Multi-Theme (7 Tema Gelap)
+![Theme Switcher](https://raw.githubusercontent.com/volthz001/mcp-hris/main/images/themes.png)
+
+*7 pilihan tema warna termasuk dark mode untuk kenyamanan mata saat bekerja malam. Preferensi tersimpan di profil masing-masing user.*
+
+---
+
+### 👤 Profil & Pengaturan Akun
+![Profil](https://raw.githubusercontent.com/volthz001/mcp-hris/main/images/profile.png)
+
+*Halaman profil untuk edit data pribadi, ganti password, dan pengaturan akun. Setiap karyawan bisa mandiri mengelola informasi mereka.*
+
+---
+
+## ✨ Fitur Lengkap
+
+| Modul | Fitur |
+|---|---|
+| **Kasbon** | Rolling limit 30 hari (maks Rp 500.000), min Rp 50.000, approval berjenjang VP/GML/Manager, status real-time, riwayat transparan |
+| **Absensi** | Check-in (08:00–08:30), check-out (17:00–18:30 + keterangan), izin/sakit (08:00–10:00), auto-alpha setelah 18:30 |
+| **KPI** | Upload Excel multipage (PS, DJP, Database, Absensi MB, KPI TL, Orbit, Upsell), grafik interaktif Chart.js, export HTML/PDF |
+| **Pesan** | Thread per user, label prioritas, mark unread, soft delete, badge counter di header |
+| **Notifikasi** | Broadcast ke semua user atau target tertentu, read receipt, alert otomatis pengajuan baru |
+| **Laporan** | Filter tanggal range + WOK + nama, gabungkan tabel absensi & kasbon dalam satu halaman |
+| **Manajemen User** | 6 level role (VP, GML, Manager WOK, TL, TC, TS), filter by role/WOK, kunci/buka akun |
+| **Profil** | Edit data diri, ganti password (min 8 karakter + simbol) |
+| **Tema** | 7 tema gelap, preferensi tersimpan per user |
+
+---
+
+## 🏗️ Arsitektur & Teknologi
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                     Browser (Client)                        │
-│  • HTML5, CSS3 (custom variables)                          │
-│  • Chart.js untuk grafik interaktif                         │
-│  • JavaScript (fetch API, polling upload)                  │
-└─────────────────────────┬───────────────────────────────────┘
-                          │ HTTP / HTTPS
-┌─────────────────────────▼───────────────────────────────────┐
-│                  Flask Application (Python)                 │
-│  • Session‑based authentication (tanpa Flask‑Login)        │
-│  • CSRF protection (Flask‑WTF)                             │
-│  • Rate limiting (Flask‑Limiter)                           │
-└─────────────────────────┬───────────────────────────────────┘
-                          │ PyMongo
-┌─────────────────────────▼───────────────────────────────────┐
-│                    MongoDB Database                         │
-│  Collections: users, kasbon, absensi, messages,            │
-│  notifications, kpi_ps, kpi_djp, kpi_database, kpi_uploads │
-└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────┐
+│         Browser (Client)                │
+│   HTML5 · CSS3 · Jinja2 · Chart.js      │
+└──────────────────┬──────────────────────┘
+                   │ HTTP / HTTPS
+┌──────────────────▼──────────────────────┐
+│       Flask Application (Python)        │
+│   Session Auth · CSRFProtect · Limiter  │
+└──────────────────┬──────────────────────┘
+                   │ PyMongo
+┌──────────────────▼──────────────────────┐
+│           MongoDB Database              │
+│  users · kasbon · absensi · messages    │
+│  notifications · kpi_ps · kpi_uploads   │
+└─────────────────────────────────────────┘
 ```
 
-### Stack Teknologi
-
-| Komponen       | Teknologi                               |
-|----------------|-----------------------------------------|
-| Backend        | Python 3.10+, Flask, Flask-PyMongo      |
-| Database       | MongoDB (Atlas / local)                 |
-| Frontend       | HTML5, CSS3 (Grid/Flexbox), Jinja2      |
-| Visualisasi    | Chart.js                                |
-| Excel Processing| Pandas, openpyxl                       |
-| Keamanan       | CSRFProtect, HMAC, HTTP‑only cookie     |
+| Komponen | Teknologi |
+|---|---|
+| Backend | Python 3.10+, Flask, Flask-PyMongo, Flask-Limiter |
+| Database | MongoDB (Atlas cloud / lokal) |
+| Frontend | HTML5, CSS3 (Grid/Flexbox), Jinja2 Templates |
+| Visualisasi | Chart.js |
+| Pemrosesan Excel | Pandas, openpyxl |
+| Keamanan | CSRFProtect, HMAC, HTTP-only cookie, Session Auth |
+| Deployment | PythonAnywhere / VPS (Nginx + Gunicorn) / Docker |
 
 ---
 
@@ -135,133 +175,98 @@ Sistem dibangun menggunakan **Flask** (backend), **MongoDB** (database), dan **C
 
 ### Prasyarat
 - Python 3.10+
-- MongoDB (local / Atlas)
+- MongoDB (lokal atau Atlas)
 - Git
 
 ### Langkah Instalasi
 
 ```bash
 # 1. Clone repository
-git clone https://github.com/username/mcp-hris.git
+git clone https://github.com/volthz001/mcp-hris.git
 cd mcp-hris
 
 # 2. Buat virtual environment
 python -m venv venv
-source venv/bin/activate     # Linux/Mac
-# atau
-venv\Scripts\activate        # Windows
+source venv/bin/activate       # Linux/Mac
+venv\Scripts\activate          # Windows
 
 # 3. Install dependencies
 pip install -r requirements.txt
 
-# 4. Buat file .env (isi sesuai)
-# .env
-MONGO_URI=mongodb+srv://username:password@cluster.mongodb.net/database_name
+# 4. Buat file .env
+MONGO_URI=mongodb+srv://username:password@cluster.mongodb.net/dbname
 SECRET_KEY=your-super-secret-key-min-32-characters
-SESSION_COOKIE_SECURE=False   # set True jika pakai HTTPS
+SESSION_COOKIE_SECURE=False    # Ubah ke True jika pakai HTTPS
 
 # 5. Jalankan aplikasi
 python app.py
 ```
 
-Buka http://localhost:5000
+Buka `http://localhost:5000`
 
-> **Login awal:** Tidak ada user default. Registrasi melalui `/register` (role default **TL**).  
-> Untuk role VP atau GML, ubah manual di MongoDB.
-
----
-
-## 📦 Deployment ke Production
-
-- **PythonAnywhere:** Set environment variables, aktifkan HTTPS, `SESSION_COOKIE_SECURE=True`.
-- **VPS (Ubuntu + Nginx + Gunicorn):**  
-  ```bash
-  pip install gunicorn
-  gunicorn -w 4 -b 127.0.0.1:5000 app:app
-  ```
-- **Docker:**  
-  ```bash
-  docker build -t mcp-hris .
-  docker run -p 5000:5000 --env-file .env mcp-hris
-  ```
+> **Catatan:** Tidak ada user default. Daftar melalui `/register` (role default: TL).  
+> Untuk mengubah role ke VP atau GML, ubah langsung di MongoDB.
 
 ---
 
-## 🧪 Hasil Pengujian dan Evaluasi
+## 📦 Deployment Production
 
-| Modul        | Skenario                                      | Hasil                                  |
-|--------------|-----------------------------------------------|----------------------------------------|
-| Kasbon       | Ajukan > Rp500.000                            | Ditolak sistem (validasi)              |
-| Kasbon       | Ajukan Rp200.000, pending, lalu approve       | Status berubah menjadi approved        |
-| Absensi      | Check‑in pukul 08:15, check‑out 17:20         | Tercatat sukses                        |
-| Absensi      | Tidak check‑in hingga 18:31                   | Otomatis status alpha                  |
-| KPI Upload   | Upload Excel dengan sheet lengkap             | Data tersimpan dan grafik muncul       |
-| KPI Export   | Klik export PDF                               | Muncul dialog print, bisa save as PDF  |
-| Pesan        | Kirim pesan dari user A ke B                  | B mendapat notifikasi dan pesan masuk  |
-| Role         | User TL tidak bisa melihat menu admin         | Redirect ke dashboard                  |
+**PythonAnywhere**
+Set environment variables, aktifkan HTTPS, `SESSION_COOKIE_SECURE=True`.
 
-**Kesimpulan:** Seluruh fungsi berjalan sesuai spesifikasi. Sistem siap digunakan di lingkungan produksi PT. Mega Creative Promosindo.
+**VPS (Ubuntu + Nginx + Gunicorn)**
+```bash
+pip install gunicorn
+gunicorn -w 4 -b 127.0.0.1:5000 app:app
+```
 
----
-
-## 📄 Kesimpulan dan Saran
-
-### Kesimpulan
-- Aplikasi MCP HRIS berhasil mengotomatisasi pengelolaan kasbon, absensi, dan KPI.
-- Mengurangi waktu persetujuan kasbon dari rata‑rata 2 hari menjadi < 1 jam.
-- Manajemen dapat memantau kinerja SF secara real‑time melalui dashboard KPI.
-- Karyawan memiliki transparansi penuh terhadap riwayat kasbon dan absensi mereka.
-
-### Saran Pengembangan
-1. **Integrasi dengan mesin absensi RFID** untuk check‑in/out otomatis.
-2. **Notifikasi WhatsApp Gateway** untuk pengajuan kasbon dan pengumuman.
-3. **Mobile responsive lebih optimal** (saat ini masih baik di desktop).
-4. **Export ke Excel untuk laporan kasbon dan absensi**.
-5. **Sistem log activity** untuk audit trail.
+**Docker**
+```bash
+docker build -t mcp-hris .
+docker run -p 5000:5000 --env-file .env mcp-hris
+```
 
 ---
 
-## 👨‍💻 Identitas Penulis
+## 🧪 Hasil Pengujian
 
-|                       |                                 |
-|-----------------------|---------------------------------|
-| **Nama 1**            | Hizkia Siallagan                |
-| **NIM**               |                                 |
-| **Email**             |                                 |   
-| **Nama 2**            | Sebastianus Efraye Galdin       |
-| **NIM**               |                                 |
-| **Email**             |                                 |
-
-**Program Studi:** Teknik Informatika  
-**Fakultas:** Ilmu Komputer  
-**Universitas:** Universitas Pamulang  
-**Tahun:** 2025/2026
-
-**Dosen Pembimbing:** 
-**Ahmad Nursodiq** 
+| Modul | Skenario | Hasil |
+|---|---|---|
+| Kasbon | Ajukan > Rp 500.000 | ✅ Ditolak sistem (validasi) |
+| Kasbon | Approve pengajuan pending | ✅ Status berubah ke approved |
+| Absensi | Check-in 08:15, check-out 17:20 | ✅ Tercatat sukses |
+| Absensi | Tidak check-in hingga 18:31 | ✅ Otomatis status alpha |
+| KPI Upload | Upload Excel sheet lengkap | ✅ Data tersimpan, grafik muncul |
+| KPI Export | Klik export PDF | ✅ Dialog print muncul |
+| Pesan | Kirim pesan dari user A ke B | ✅ Notifikasi dan pesan masuk |
+| Role | TL akses menu admin | ✅ Redirect ke dashboard |
 
 ---
 
-## 🙏 Ucapan Terima Kasih
+## 🗺️ Roadmap
 
-- **PT. Mega Creative Promosindo** – atas kesempatan dan data yang diberikan.
-- **Dosen Pembimbing** – atas bimbingan selama pelaksanaan kerja praktek.
-- **Seluruh staf dan karyawan PT. MCP** – atas kerja sama dan masukan.
-- **Tim open source** – Flask, MongoDB, Chart.js, dan seluruh pustaka yang digunakan.
+- [ ] Integrasi mesin absensi RFID
+- [ ] Notifikasi via WhatsApp Gateway
+- [ ] Mobile responsive yang lebih optimal
+- [ ] Export laporan kasbon & absensi ke Excel
+- [ ] Sistem log activity untuk audit trail lengkap
+
+---
+
+## 👨‍💻 Developer
+
+**Hizkia Siallagan** — Full-Stack Developer  
+📧 hizkiasiallagan5@gmail.com  
+📱 0821-7573-3644 (WA/Telepon)  
+📍 BSD City, Tangerang Selatan  
+🔗 [github.com/volthz001](https://github.com/volthz001)
 
 ---
 
 ## 📄 Lisensi
 
-Kode sumber dilisensikan di bawah **MIT License**.  
-Dokumen laporan kerja praktek ini adalah hak cipta Universitas Pamulang dan PT. Mega Creative Promosindo.
+Kode sumber dilisensikan di bawah [MIT License](LICENSE).
 
 ---
 
-> Repository ini merupakan hasil **Kerja Praktek** yang disusun untuk memenuhi salah satu syarat kelulusan.  
-> Dilarang menyalin atau menyebarluaskan tanpa izin tertulis dari penulis dan universitas.
-
-**Terakhir diperbarui:** Juni 2026  
-**Versi Aplikasi:** 1.0.0
-```
-
+> *Versi 1.0.0 · Juni 2026 · BSD City, Tangerang Selatan*
