@@ -4,12 +4,29 @@
 {% block breadcrumb %}Manajemen / Pengguna{% endblock %}
 
 {% block content %}
+<!-- TABS untuk filter status -->
+<div class="card">
+  <div class="card-header">
+    <div class="tab-buttons" style="display: flex; gap: 8px; border-bottom: 1px solid var(--border);">
+      <a href="{{ url_for('user_list') }}" class="tab-btn {% if not show_pending %}active{% endif %}" 
+         style="padding: 8px 16px; text-decoration: none; {% if not show_pending %}border-bottom: 2px solid var(--primary);{% endif %}">
+        📋 Semua User
+      </a>
+      <a href="{{ url_for('user_pending_list') }}" class="tab-btn {% if show_pending %}active{% endif %}"
+         style="padding: 8px 16px; text-decoration: none; {% if show_pending %}border-bottom: 2px solid var(--primary);{% endif %}">
+        ⏳ Menunggu Aktivasi <span class="badge badge-warning">{{ pending_count }}</span>
+      </a>
+    </div>
+  </div>
+</div>
+
+<!-- Filter card (sama seperti sebelumnya) -->
 <div class="card">
   <div class="card-header">
     <div class="card-title">Filter Pengguna</div>
   </div>
   <div class="filter-bar">
-    <form method="GET" action="{{ url_for('user_list') }}" class="filter-row">
+    <form method="GET" action="{% if show_pending %}{{ url_for('user_pending_list') }}{% else %}{{ url_for('user_list') }}{% endif %}" class="filter-row">
       <div class="filter-group">
         <label>Cari (Nama/Username)</label>
         <input type="text" name="search" value="{{ search }}" placeholder="Ketik nama atau username...">
@@ -34,7 +51,7 @@
       </div>
       <div class="filter-group" style="flex-direction:row; gap:8px;">
         <button type="submit" class="btn btn-primary btn-sm">Filter</button>
-        <a href="{{ url_for('user_list') }}" class="btn btn-ghost btn-sm">Reset</a>
+        <a href="{% if show_pending %}{{ url_for('user_pending_list') }}{% else %}{{ url_for('user_list') }}{% endif %}" class="btn btn-ghost btn-sm">Reset</a>
       </div>
     </form>
   </div>
@@ -42,8 +59,16 @@
 
 <div class="card">
   <div class="card-header">
-    <div class="card-title">Daftar Pengguna</div>
+    <div class="card-title">
+      {% if show_pending %}
+      Akun Menunggu Aktivasi ({{ users|length }})
+      {% else %}
+      Daftar Pengguna
+      {% endif %}
+    </div>
+    {% if not show_pending %}
     <a href="{{ url_for('user_tambah') }}" class="btn btn-primary btn-sm">+ Tambah User</a>
+    {% endif %}
   </div>
   <div class="table-wrap">
     <table class="data-table">
@@ -65,27 +90,45 @@
           <td>{{ u.username }}</td>
           <td>{{ u.nama or '-' }}</td>
           <td>
-            <select class="role-select" data-id="{{ u._id }}" data-current="{{ u.role }}">
-              {% for r in role_list %}
-              <option value="{{ r }}" {% if u.role == r %}selected{% endif %}>{{ r }}</option>
-              {% endfor %}
-            </select>
+            {% if show_pending %}
+              <!-- Untuk akun pending, bisa pilih role saat aktivasi -->
+              <select class="role-select" data-id="{{ u._id }}" data-current="SF">
+                {% for r in role_list %}
+                <option value="{{ r }}">{{ r }}</option>
+                {% endfor %}
+              </select>
+            {% else %}
+              <select class="role-select" data-id="{{ u._id }}" data-current="{{ u.role }}">
+                {% for r in role_list %}
+                <option value="{{ r }}" {% if u.role == r %}selected{% endif %}>{{ r }}</option>
+                {% endfor %}
+              </select>
+            {% endif %}
           </td>
           <td>{{ u.wok or '-' }}</td>
           <td>
-            {% if u.is_locked %}
-            <span class="badge badge-danger">Terkunci</span>
+            {% if u.status == 'pending' %}
+            <span class="badge badge-warning">⏳ Menunggu Aktivasi</span>
+            {% elif u.is_locked %}
+            <span class="badge badge-danger">🔒 Terkunci</span>
             {% else %}
-            <span class="badge badge-success">Aktif</span>
+            <span class="badge badge-success">✅ Aktif</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if show_pending %}
+              <!-- Tombol Aktivasi untuk akun pending -->
+              <button class="btn btn-sm btn-success activate-user" data-id="{{ u._id }}" data-nama="{{ u.nama|escape }}">
+                ✅ Aktivasi Akun
+              </button>
+            {% else %}
+              <button class="btn btn-sm btn-warning toggle-lock" data-id="{{ u._id }}" data-locked="{{ u.is_locked|default(False)|lower }}">
+                {% if u.is_locked %}🔓 Buka Kunci{% else %}🔒 Kunci{% endif %}
+              </button>
+              <button class="btn btn-sm btn-primary update-role" data-id="{{ u._id }}">Ubah Role</button>
             {% endif %}
            </td>
-          <td>
-            <button class="btn btn-sm btn-warning toggle-lock" data-id="{{ u._id }}" data-locked="{{ u.is_locked|default(False)|lower }}">
-              {% if u.is_locked %}🔓 Buka Kunci{% else %}🔒 Kunci{% endif %}
-            </button>
-            <button class="btn btn-sm btn-primary update-role" data-id="{{ u._id }}">Ubah Role</button>
-           </td>
-         </tr>
+        </tr>
         {% endfor %}
       </tbody>
     </table>
@@ -93,7 +136,7 @@
 </div>
 
 <script>
-  // Toggle lock/unlock
+  // ========== Toggle lock/unlock (untuk user biasa) ==========
   document.querySelectorAll('.toggle-lock').forEach(btn => {
     btn.addEventListener('click', async function() {
       const userId = this.dataset.id;
@@ -108,7 +151,7 @@
     });
   });
 
-  // Update role
+  // ========== Update role (untuk user biasa) ==========
   document.querySelectorAll('.update-role').forEach(btn => {
     btn.addEventListener('click', async function() {
       const userId = this.dataset.id;
@@ -128,5 +171,48 @@
       }
     });
   });
+
+  // ========== AKTIVASI AKUN PENDING (untuk VP/GML) ==========
+  document.querySelectorAll('.activate-user').forEach(btn => {
+    btn.addEventListener('click', async function() {
+      const userId = this.dataset.id;
+      const nama = this.dataset.nama;
+      const select = document.querySelector(`.role-select[data-id="${userId}"]`);
+      const newRole = select ? select.value : 'SF';
+      
+      if (confirm(`Aktivasi akun ${nama} sebagai ${newRole}?`)) {
+        const res = await fetch(`/user/activate/${userId}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ role: newRole })
+        });
+        const data = await res.json();
+        if (data.success) {
+          alert(data.message);
+          location.reload();
+        } else {
+          alert('Gagal: ' + data.message);
+        }
+      }
+    });
+  });
 </script>
+
+<style>
+  .tab-btn.active {
+    font-weight: bold;
+    color: var(--primary);
+    border-bottom: 2px solid var(--primary);
+  }
+  .tab-btn {
+    color: var(--text-muted);
+  }
+  .badge-warning {
+    background-color: #f59e0b;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 20px;
+    font-size: 12px;
+  }
+</style>
 {% endblock %}
