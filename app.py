@@ -471,17 +471,6 @@ def get_kasbon_limit_info(user_id):
     }
  
 
-
-
-
-
- #===============================================================================
- #messages
- #===============================================================================
- # ============================================================
-# MESSAGING ROUTES - FIXED VERSION
-# ============================================================
-# Di awal app.py, setelah import
 _ROLE_LABEL = {
     "VP": "Vice President",
     "GML": "General Manager Level",
@@ -1445,9 +1434,13 @@ def user_list():
     search = request.args.get("search", "").strip()
     role_filter = request.args.get("role", "").strip()
     wok_filter = request.args.get("wok", "").strip()
+    status_filter = request.args.get("status", "")  # 'active', 'pending', atau ''
+    show_pending = status_filter == 'pending'
 
     # Bangun query MongoDB
     query = {}
+    if status_filter:
+        query["status"] = status_filter
     if search:
         query["$or"] = [
             {"username": {"$regex": search, "$options": "i"}},
@@ -1458,7 +1451,10 @@ def user_list():
     if wok_filter:
         query["wok"] = wok_filter
 
-    users = list(mongo.db.users.find(query, {"password": 0}).sort("nama", 1))
+    users = list(mongo.db.users.find(query, {"password": 0}).sort("created_at" if show_pending else "nama", -1 if show_pending else 1))
+
+    # Hitung jumlah pending untuk badge
+    pending_count = mongo.db.users.count_documents({"status": "pending"})
 
     return render_template("user_list.html",
         users=users,
@@ -1467,8 +1463,10 @@ def user_list():
         search=search,
         role_filter=role_filter,
         wok_filter=wok_filter,
+        show_pending=show_pending,
+        pending_count=pending_count,
         user=get_current_user()
-    ) 
+    )
 @app.route("/users/tambah", methods=["GET", "POST"])
 @login_required
 @role_required("VP", "GML")
@@ -1944,10 +1942,16 @@ def kpi():
         user = get_current_user(),
         **ctx,
     )
-# /debug-templates dihapus — tidak boleh ada di production
+@app.route('/debug-templates')
+def debug_templates():
+    import os
+    folder = os.path.join(app.root_path, 'templates')
+    files = os.listdir(folder)
+    return str(files)
 @app.route("/kpi/upload", methods=["GET", "POST"])
 @login_required
-@role_required("VP", "GML", "MANAGER_WOK")
+@csrf.exempt
+@role_required("VP", "GML",'MGR')
 def kpi_upload():
     if request.method == "POST":
         month = int(request.form.get("month"))
@@ -1998,7 +2002,6 @@ def kpi_upload():
     )
 @app.route("/kpi/upload-progress/<task_id>")
 @login_required
-
 @role_required('VP', 'GML', 'MANAGER_WOK')
 def kpi_upload_progress(task_id):
     data = upload_progress.get(task_id)
