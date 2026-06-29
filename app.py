@@ -25,13 +25,25 @@ from flask import (
     Flask, render_template, request, redirect,
     url_for, session, flash, jsonify, make_response, Blueprint,send_file,get_flashed_messages
 )
+from pymongo import MongoClient
 import secrets
 from dotenv import load_dotenv
 from flask_pymongo import PyMongo
 from collections import defaultdict
 from datetime import datetime, date, timedelta,time
 from werkzeug.security import generate_password_hash, check_password_hash
+import logging
+from pythonjsonlogger import jsonlogger
 
+# Setup logger
+logger = logging.getLogger()
+logHandler = logging.StreamHandler()
+formatter = jsonlogger.JsonFormatter(
+    '%(asctime)s %(levelname)s %(name)s %(message)s'
+)
+logHandler.setFormatter(formatter)
+logger.addHandler(logHandler)
+logger.setLevel(logging.INFO)
 # ══════════════════════════════════════════════════════════════════════════════
 # 1. KONFIGURASI ENVIRONMENT (WAJIB ADA)
 # ══════════════════════════════════════════════════════════════════════════════
@@ -65,6 +77,17 @@ limiter = Limiter(
 # 3. MONGODB URI (WAJIB DARI ENVIRONMENT, TIDAK ADA FALLBACK)
 # ══════════════════════════════════════════════════════════════════════════════
 MONGO_URI = os.environ.get("MONGO_URI")
+# Buat client dengan connection pool
+client = MongoClient(
+    MONGO_URI,
+    maxPoolSize=50,          # Maksimal 50 koneksi simultan
+    minPoolSize=10,          # Minimal 10 koneksi standby
+    maxIdleTimeMS=60000,     # Tutup koneksi idle setelah 60 detik
+    connectTimeoutMS=5000,   # Timeout koneksi 5 detik
+    socketTimeoutMS=30000    # Timeout baca/tulis 30 detik
+)
+db = client.get_database()  # Ambil database dari URI
+
 if not MONGO_URI:
     raise ValueError("MONGO_URI harus diset di environment variable!")
 
@@ -78,7 +101,9 @@ app.config.update(
     SESSION_COOKIE_SAMESITE='Lax',       # Melindungi dari CSRF
     PERMANENT_SESSION_LIFETIME=timedelta(hours=8)
 )
-
+app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024  # Maksimal 10 MB
+app.config['MONGO_CLIENT'] = client
+app.config['MONGO_DB'] = db
 # Aktifkan Secure cookie hanya jika menggunakan HTTPS (di production)
 if os.environ.get("SESSION_COOKIE_SECURE", "False").lower() == "true":
     app.config["SESSION_COOKIE_SECURE"] = True
@@ -176,7 +201,37 @@ def role_required(*roles):
         return decorated
     return decorator
 
-
+@app.route('/health', methods=['GET'])
+def health_check():
+    status = {
+        "status": "healthy",
+        "mongodb": "disconnected",
+        "redis": "disabled"
+    }
+    
+    # Cek MongoDB
+    try:
+        # Ping database
+        db.command('ping')
+        status["mongodb"] = "connected"
+    except Exception as e:
+        status["status"] = "unhealthy"
+        status["mongodb"] = f"error: {str(e)}"
+    
+    # Cek Redis (opsional, hanya jika pakai Redis)
+    if os.getenv('SESSION_TYPE') == 'redis':
+        try:
+            import redis
+            r = redis.Redis.from_url(os.getenv('SESSION_REDIS'))
+            r.ping()
+            status["redis"] = "connected"
+        except Exception as e:
+            status["status"] = "unhealthy"
+            status["redis"] = f"error: {str(e)}"
+    
+    # Return status code 200 jika sehat, 503 jika tidak
+    http_code = 200 if status["status"] == "healthy" else 503
+    return jsonify(status), http_code
 # ══════════════════════════════════════════════════════════════════════════════
 # AUTH ROUTES
 # ══════════════════════════════════════════════════════════════════════════════
@@ -191,6 +246,12 @@ def login():
             session.clear()
             flash("Akun Anda sedang dikunci. Hubungi administrator.", "danger")
             return render_template("login.html")
+        logger.info({
+        "event": "user_login",
+        "user_id": user_id,
+        "ip": request.remote_addr,
+        "success": True
+        })
         return redirect(url_for("dashboard"))
 
     # Hapus semua flash message yang tersisa (hanya untuk method GET)
@@ -2001,7 +2062,9 @@ def kpi_upload():
         upload_history = upload_history,
     )
 @app.route("/kpi/upload-progress/<task_id>")
+@limiter.exempt
 @login_required
+@csrf.exempt    
 @role_required('VP', 'GML', 'MANAGER_WOK')
 def kpi_upload_progress(task_id):
     data = upload_progress.get(task_id)
@@ -2289,6 +2352,7 @@ def setup_indexes():
  
 # ── API unread counts ──────────────────────────────────────────────────────────
 @app.route("/api/unread-counts")
+@limiter.exempt
 @login_required
 def api_unread_counts():
     uid = session["user_id"]
@@ -2777,7 +2841,7 @@ def process_kpi_upload_background(task_id, file_bytes, filename, month, year, wo
         for sname in sheet_names:
             df_raw = pd.read_excel(io.BytesIO(file_bytes), sheet_name=sname, header=None)
             headers = df_raw.iloc[0].fillna("").astype(str).tolist() if len(df_raw) > 0 else []
-            data_raw = df_raw.iloc[1:].fillna("").astype(str).values.tolist() if len(df_raw) > 1 else []
+            data_raw = df_raw.iloc[1:].infer_objects(copy=False).fillna("").astype(str).values.tolist() if len(df_raw) > 1 else []
             mongo.db.kpi_excel_data.update_one(
                 {"month": month, "year": year, "wok": wok, "sheet_name": sname},
                 {"$set": {
