@@ -5,6 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="csrf-token" content="{{ csrf_token() }}">
   <title>{% block title %}KASBON & ABSENSI{% endblock %}</title>
+  
+  {# ── Vercel Web Analytics ── #}
+  <script defer src="https://cdn.vercel-insights.com/v1/script.js"></script>
+  
   <script>
     // ════════════════════════════════════════════════════════════════
     // Global fetch wrapper: sisipkan header X-CSRFToken otomatis untuk
