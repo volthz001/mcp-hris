@@ -8,6 +8,7 @@ Werkzeug==3.0.3
 # Database
 Flask-PyMongo==2.3.0
 pymongo==4.7.3
+python-json-logger==2.0.7
 dnspython==2.6.1  # Required for MongoDB Atlas URI (mongodb+srv://)
 
 # Security
