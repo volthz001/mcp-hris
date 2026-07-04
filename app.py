@@ -104,6 +104,7 @@ app.config.update(
 app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024  # Maksimal 10 MB
 app.config['MONGO_CLIENT'] = client
 app.config['MONGO_DB'] = db
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(seconds=int(os.environ.get('PERMANENT_SESSION_LIFETIME', 3600)))
 # Aktifkan Secure cookie hanya jika menggunakan HTTPS (di production)
 if os.environ.get("SESSION_COOKIE_SECURE", "False").lower() == "true":
     app.config["SESSION_COOKIE_SECURE"] = True
