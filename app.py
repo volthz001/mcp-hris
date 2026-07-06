@@ -235,8 +235,32 @@ def health_check():
     return jsonify(status), http_code
 payroll_bp = Blueprint('payroll', __name__, url_prefix='/payroll')
 
-ALLOWED_ROLES_MANAGE = ['VP', 'GML']
-ALLOWED_ROLES_VIEW   = ['VP', 'GML', 'MANAGER_WOK', 'TS']
+# ---------------------------------------------------------------------------
+# Role permission payroll — configurable per perusahaan (bukan hardcoded lagi)
+# Disimpan di collection `payroll_settings`, fallback ke default kalau belum
+# pernah diatur. Ini persiapan multi-tenant: tinggal tambah filter tenant_id
+# di query-nya nanti kalau sudah full SaaS.
+# ---------------------------------------------------------------------------
+DEFAULT_ROLES_MANAGE = ['VP', 'GML']
+DEFAULT_ROLES_VIEW   = ['VP', 'GML', 'MANAGER_WOK', 'TS']
+
+def _payroll_settings_doc():
+    from app import mongo
+    doc = mongo.db.payroll_settings.find_one({"_id": "default"})
+    if not doc:
+        doc = {
+            "_id": "default",
+            "roles_manage": DEFAULT_ROLES_MANAGE,
+            "roles_view": DEFAULT_ROLES_VIEW,
+        }
+        mongo.db.payroll_settings.insert_one(doc)
+    return doc
+
+def get_roles_manage():
+    return _payroll_settings_doc().get("roles_manage", DEFAULT_ROLES_MANAGE)
+
+def get_roles_view():
+    return _payroll_settings_doc().get("roles_view", DEFAULT_ROLES_VIEW)
 
 
 # ---------------------------------------------------------------------------
@@ -407,7 +431,7 @@ def _build_slip(karyawan: dict, periode: str, period_id, mongo) -> dict:
 @payroll_bp.route('/')
 @_login_required
 def index():
-    if _current_role() not in ALLOWED_ROLES_VIEW:
+    if _current_role() not in get_roles_view():
         flash('Akses ditolak.', 'danger')
         return redirect(url_for('dashboard'))
 
@@ -417,10 +441,44 @@ def index():
     return render_template('payroll/list.html', periods=periods, now=dt.now())
 
 
+@payroll_bp.route('/settings', methods=['GET', 'POST'])
+@_login_required
+def settings():
+    """Atur siapa yang boleh generate/approve (manage) dan siapa yang boleh
+    lihat data payroll semua karyawan (view). Khusus VP, tidak perlu ubah kode."""
+    if _current_role() != 'VP':
+        flash('Hanya VP yang bisa mengubah pengaturan payroll.', 'danger')
+        return redirect(url_for('payroll.index'))
+
+    mongo = _get_mongo()
+    if request.method == 'POST':
+        roles_manage = request.form.getlist('roles_manage')
+        roles_view = request.form.getlist('roles_view')
+        # VP wajib selalu ada di kedua list, biar tidak lock diri sendiri
+        if 'VP' not in roles_manage:
+            roles_manage.append('VP')
+        if 'VP' not in roles_view:
+            roles_view.append('VP')
+        mongo.db.payroll_settings.update_one(
+            {"_id": "default"},
+            {"$set": {"roles_manage": roles_manage, "roles_view": roles_view}},
+            upsert=True
+        )
+        flash('Pengaturan akses payroll berhasil disimpan.', 'success')
+        return redirect(url_for('payroll.settings'))
+
+    return render_template(
+        'payroll/settings.html',
+        all_roles=ROLE_LIST,
+        current_manage=get_roles_manage(),
+        current_view=get_roles_view(),
+    )
+
+
 @payroll_bp.route('/generate', methods=['POST'])
 @_login_required
 def generate():
-    if _current_role() not in ALLOWED_ROLES_MANAGE:
+    if _current_role() not in get_roles_manage():
         return jsonify({'error': 'Unauthorized'}), 403
 
     mongo = _get_mongo()
@@ -479,7 +537,7 @@ def generate():
 @payroll_bp.route('/period/<period_id>')
 @_login_required
 def detail_period(period_id):
-    if _current_role() not in ALLOWED_ROLES_VIEW:
+    if _current_role() not in get_roles_view():
         flash('Akses ditolak.', 'danger')
         return redirect(url_for('payroll.index'))
 
@@ -528,7 +586,7 @@ def slip_detail(slip_id):
 
     uid = _current_uid()
     is_own     = slip.get('user_id') == uid
-    is_manager = _current_role() in ALLOWED_ROLES_VIEW
+    is_manager = _current_role() in get_roles_view()
     if not (is_own or is_manager):
         flash('Akses ditolak.', 'danger')
         return redirect(url_for('dashboard'))
@@ -546,7 +604,7 @@ def export_slip_pdf(slip_id):
 
     uid = _current_uid()
     is_own     = slip.get('user_id') == uid
-    is_manager = _current_role() in ALLOWED_ROLES_VIEW
+    is_manager = _current_role() in get_roles_view()
     if not (is_own or is_manager):
         return 'Akses ditolak', 403
 
@@ -604,7 +662,7 @@ def api_slip_detail(slip_id):
 
     uid    = _current_uid()
     is_own = slip.get('user_id') == uid
-    if not (is_own or _current_role() in ALLOWED_ROLES_VIEW):
+    if not (is_own or _current_role() in get_roles_view()):
         return jsonify({'error': 'Forbidden'}), 403
 
     slip['_id']        = str(slip['_id'])
