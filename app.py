@@ -233,6 +233,384 @@ def health_check():
     # Return status code 200 jika sehat, 503 jika tidak
     http_code = 200 if status["status"] == "healthy" else 503
     return jsonify(status), http_code
+payroll_bp = Blueprint('payroll', __name__, url_prefix='/payroll')
+
+ALLOWED_ROLES_MANAGE = ['VP', 'GML']
+ALLOWED_ROLES_VIEW   = ['VP', 'GML', 'MANAGER_WOK', 'TS']
+
+
+# ---------------------------------------------------------------------------
+# Helpers — akses session & db (kompatibel dengan app.py yang ada)
+# ---------------------------------------------------------------------------
+
+def _get_mongo():
+    """Ambil instance mongo dari app context."""
+    from flask import current_app
+    from flask_pymongo import PyMongo
+    # mongo sudah diinit di app.py, akses via current_app.extensions
+    # Cara paling aman: import langsung dari app
+    import app as main_app
+    return main_app.mongo
+
+def _current_role():
+    return session.get('role', '')
+
+def _current_uid():
+    return session.get('user_id', '')
+
+def _current_name():
+    return session.get('name') or session.get('username', '?')
+
+def _login_required(f):
+    """Versi lokal login_required untuk blueprint."""
+    from functools import wraps
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if 'user_id' not in session:
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated
+
+def _role_required(*roles):
+    from functools import wraps
+    def decorator(f):
+        @wraps(f)
+        def decorated(*args, **kwargs):
+            if 'user_id' not in session:
+                return redirect(url_for('login'))
+            if session.get('role') not in roles:
+                flash('Akses ditolak.', 'danger')
+                return redirect(url_for('dashboard'))
+            return f(*args, **kwargs)
+        return decorated
+    return decorator
+
+
+# ---------------------------------------------------------------------------
+# Helper: Build satu slip gaji untuk satu karyawan
+# ---------------------------------------------------------------------------
+
+def _build_slip(karyawan: dict, periode: str, period_id, mongo) -> dict:
+    from payroll.calculator.pph21 import hitung_pph21_nett
+    from payroll.calculator.bpjs import hitung_bpjs
+    from payroll.calculator.overtime import hitung_lembur
+
+    uid = karyawan['_id']
+    gaji_pokok   = float(karyawan.get('gaji_pokok', 0))
+    tunjangan    = float(karyawan.get('tunjangan_tetap', 0))
+    status_ptkp  = karyawan.get('status_ptkp', 'TK0')
+    risiko_kerja = karyawan.get('risiko_kerja', 'sangat_rendah')
+
+    tahun, bulan = periode.split('-')
+
+    # 1. Lembur dari absensi bulan ini
+    absensi_bulan = list(mongo.db.absensi.find({
+        'user_id': str(uid),
+        'bulan': int(bulan),
+        'tahun': int(tahun),
+    }))
+    total_jam_lembur = sum(float(a.get('lembur_jam', 0)) for a in absensi_bulan)
+    lembur = hitung_lembur(gaji_pokok, total_jam_lembur)
+
+    # 2. Kasbon approved yang belum dipotong
+    kasbon_list = list(mongo.db.kasbon.find({
+        'user_id': str(uid),
+        'status': 'approved',
+        'terpotong': {'$ne': True},
+    }))
+    total_kasbon = sum(float(k.get('nominal', 0)) for k in kasbon_list)
+
+    # 3. BPJS
+    bpjs = hitung_bpjs(gaji_pokok, tunjangan, risiko_kerja)
+
+    # 4. Total pendapatan
+    total_pendapatan = gaji_pokok + tunjangan + lembur['total_lembur']
+
+    # 5. PPh 21 Nett
+    pph = hitung_pph21_nett(total_pendapatan, status_ptkp)
+
+    # 6. Potongan karyawan
+    total_potongan = (
+        total_kasbon
+        + bpjs['jht_karyawan']
+        + bpjs['jp_karyawan']
+        + bpjs['kes_karyawan']
+    )
+
+    gaji_bersih = total_pendapatan - total_potongan
+
+    # 7. Total cost perusahaan
+    total_cost = (
+        total_pendapatan
+        + pph['pph21_bulanan']
+        + bpjs['total_bpjs_perusahaan']
+    )
+
+    # 8. Tandai kasbon sebagai terpotong
+    kasbon_ids = [k['_id'] for k in kasbon_list]
+    if kasbon_ids:
+        mongo.db.kasbon.update_many(
+            {'_id': {'$in': kasbon_ids}},
+            {'$set': {'terpotong': True, 'potong_periode': periode}}
+        )
+
+    return {
+        'periode_id':       period_id,
+        'periode':          periode,
+        'user_id':          str(uid),
+        'nama':             karyawan.get('nama', ''),
+        'jabatan':          karyawan.get('jabatan', '') or karyawan.get('role', ''),
+        'departemen':       karyawan.get('wok', '') or karyawan.get('area', ''),
+        'status_ptkp':      status_ptkp,
+
+        # Pendapatan
+        'gaji_pokok':       gaji_pokok,
+        'tunjangan_tetap':  tunjangan,
+        'uang_lembur':      lembur['total_lembur'],
+        'lembur_jam':       total_jam_lembur,
+        'thr_bonus':        0,
+        'total_pendapatan': total_pendapatan,
+
+        # Potongan karyawan
+        'potongan_kasbon':      total_kasbon,
+        'bpjs_jht_karyawan':    bpjs['jht_karyawan'],
+        'bpjs_jp_karyawan':     bpjs['jp_karyawan'],
+        'bpjs_kes_karyawan':    bpjs['kes_karyawan'],
+        'total_potongan':       total_potongan,
+
+        # Take-home
+        'gaji_bersih': gaji_bersih,
+
+        # PPh 21
+        'pph21':      pph['pph21_bulanan'],
+        'ter_rate':   pph['ter_rate'],
+        'ter_persen': pph['ter_persen'],
+
+        # BPJS perusahaan
+        'bpjs_jht_perusahaan': bpjs['jht_perusahaan'],
+        'bpjs_jp_perusahaan':  bpjs['jp_perusahaan'],
+        'bpjs_jkk':            bpjs['jkk'],
+        'bpjs_jkm':            bpjs['jkm'],
+        'bpjs_kes_perusahaan': bpjs['kes_perusahaan'],
+
+        'total_cost_perusahaan': total_cost,
+
+        'status':     'draft',
+        'created_at': datetime.utcnow(),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Routes
+# ---------------------------------------------------------------------------
+
+@payroll_bp.route('/')
+@_login_required
+def index():
+    if _current_role() not in ALLOWED_ROLES_VIEW:
+        flash('Akses ditolak.', 'danger')
+        return redirect(url_for('dashboard'))
+
+    mongo = _get_mongo()
+    periods = list(mongo.db.payroll_periods.find().sort('periode', -1).limit(24))
+    from datetime import datetime as dt
+    return render_template('payroll/list.html', periods=periods, now=dt.now())
+
+
+@payroll_bp.route('/generate', methods=['POST'])
+@_login_required
+def generate():
+    if _current_role() not in ALLOWED_ROLES_MANAGE:
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    mongo = _get_mongo()
+    data    = request.get_json()
+    periode = data.get('periode')  # format: "2025-07"
+
+    if not periode:
+        return jsonify({'error': 'Periode wajib diisi (format: YYYY-MM)'}), 400
+
+    if mongo.db.payroll_periods.find_one({'periode': periode}):
+        return jsonify({'error': f'Payroll {periode} sudah pernah di-generate'}), 409
+
+    period_doc = {
+        'periode':    periode,
+        'status':     'draft',
+        'created_by': _current_uid(),
+        'created_at': datetime.utcnow(),
+    }
+    period_id = mongo.db.payroll_periods.insert_one(period_doc).inserted_id
+
+    # Ambil semua karyawan aktif (bukan yang is_locked)
+    karyawans = list(mongo.db.users.find({
+        'is_locked': {'$ne': True},
+        'gaji_pokok': {'$exists': True, '$gt': 0},
+    }))
+
+    slips  = []
+    errors = []
+
+    for k in karyawans:
+        try:
+            slip = _build_slip(k, periode, period_id, mongo)
+            slips.append(slip)
+        except Exception as e:
+            errors.append({'user_id': str(k['_id']), 'nama': k.get('nama'), 'error': str(e)})
+
+    if slips:
+        mongo.db.payroll_slips.insert_many(slips)
+
+    total_cost = sum(s['total_cost_perusahaan'] for s in slips)
+    mongo.db.payroll_periods.update_one(
+        {'_id': period_id},
+        {'$set': {'total_cost_perusahaan': total_cost, 'jumlah_karyawan': len(slips)}}
+    )
+
+    return jsonify({
+        'success':    True,
+        'periode':    periode,
+        'period_id':  str(period_id),
+        'total_slip': len(slips),
+        'total_cost': total_cost,
+        'errors':     errors,
+    })
+
+
+@payroll_bp.route('/period/<period_id>')
+@_login_required
+def detail_period(period_id):
+    if _current_role() not in ALLOWED_ROLES_VIEW:
+        flash('Akses ditolak.', 'danger')
+        return redirect(url_for('payroll.index'))
+
+    mongo = _get_mongo()
+    period = mongo.db.payroll_periods.find_one({'_id': ObjectId(period_id)})
+    if not period:
+        flash('Periode tidak ditemukan.', 'warning')
+        return redirect(url_for('payroll.index'))
+
+    slips = list(mongo.db.payroll_slips.find(
+        {'periode_id': ObjectId(period_id)}
+    ).sort('nama', 1))
+    return render_template('payroll/detail.html', period=period, slips=slips)
+
+
+@payroll_bp.route('/approve/<period_id>', methods=['POST'])
+@_login_required
+def approve_period(period_id):
+    if _current_role() != 'VP':
+        return jsonify({'error': 'Hanya VP yang dapat menyetujui payroll'}), 403
+
+    mongo = _get_mongo()
+    mongo.db.payroll_periods.update_one(
+        {'_id': ObjectId(period_id)},
+        {'$set': {
+            'status':      'approved',
+            'approved_by': _current_uid(),
+            'approved_at': datetime.utcnow(),
+        }}
+    )
+    mongo.db.payroll_slips.update_many(
+        {'periode_id': ObjectId(period_id)},
+        {'$set': {'status': 'approved'}}
+    )
+    return jsonify({'success': True})
+
+
+@payroll_bp.route('/slip/<slip_id>')
+@_login_required
+def slip_detail(slip_id):
+    mongo = _get_mongo()
+    slip = mongo.db.payroll_slips.find_one({'_id': ObjectId(slip_id)})
+    if not slip:
+        flash('Slip tidak ditemukan.', 'warning')
+        return redirect(url_for('payroll.index'))
+
+    uid = _current_uid()
+    is_own     = slip.get('user_id') == uid
+    is_manager = _current_role() in ALLOWED_ROLES_VIEW
+    if not (is_own or is_manager):
+        flash('Akses ditolak.', 'danger')
+        return redirect(url_for('dashboard'))
+
+    return render_template('payroll/slip.html', slip=slip)
+
+
+@payroll_bp.route('/slip/<slip_id>/pdf')
+@_login_required
+def export_slip_pdf(slip_id):
+    mongo = _get_mongo()
+    slip = mongo.db.payroll_slips.find_one({'_id': ObjectId(slip_id)})
+    if not slip:
+        return 'Slip tidak ditemukan', 404
+
+    uid = _current_uid()
+    is_own     = slip.get('user_id') == uid
+    is_manager = _current_role() in ALLOWED_ROLES_VIEW
+    if not (is_own or is_manager):
+        return 'Akses ditolak', 403
+
+    from payroll.utils.pdf_generator import generate_slip_pdf
+    pdf_bytes = generate_slip_pdf(slip)
+
+    filename = f"slip_{slip['nama'].replace(' ', '_')}_{slip.get('periode', 'x')}.pdf"
+    return send_file(
+        io.BytesIO(pdf_bytes),
+        mimetype='application/pdf',
+        as_attachment=True,
+        download_name=filename,
+    )
+
+
+@payroll_bp.route('/my-slips')
+@_login_required
+def my_slips():
+    mongo = _get_mongo()
+    uid = _current_uid()
+    slips = list(mongo.db.payroll_slips.find(
+        {'user_id': uid, 'status': 'approved'}
+    ).sort('created_at', -1))
+    return render_template('payroll/my_slips.html', slips=slips)
+
+
+# ---------------------------------------------------------------------------
+# API JSON (untuk VRIS Flutter)
+# ---------------------------------------------------------------------------
+
+@payroll_bp.route('/api/my-slips')
+@_login_required
+def api_my_slips():
+    mongo  = _get_mongo()
+    uid    = _current_uid()
+    slips  = list(mongo.db.payroll_slips.find(
+        {'user_id': uid, 'status': 'approved'},
+        {'_id': 1, 'periode': 1, 'gaji_bersih': 1,
+         'total_pendapatan': 1, 'total_potongan': 1, 'pph21': 1, 'created_at': 1}
+    ).sort('created_at', -1).limit(12))
+
+    for s in slips:
+        s['_id']        = str(s['_id'])
+        s['created_at'] = s['created_at'].isoformat() if s.get('created_at') else None
+    return jsonify(slips)
+
+
+@payroll_bp.route('/api/slip/<slip_id>')
+@_login_required
+def api_slip_detail(slip_id):
+    mongo = _get_mongo()
+    slip  = mongo.db.payroll_slips.find_one({'_id': ObjectId(slip_id)})
+    if not slip:
+        return jsonify({'error': 'Not found'}), 404
+
+    uid    = _current_uid()
+    is_own = slip.get('user_id') == uid
+    if not (is_own or _current_role() in ALLOWED_ROLES_VIEW):
+        return jsonify({'error': 'Forbidden'}), 403
+
+    slip['_id']        = str(slip['_id'])
+    slip['periode_id'] = str(slip['periode_id'])
+    slip['created_at'] = slip['created_at'].isoformat() if slip.get('created_at') else None
+    return jsonify(slip)
 # ══════════════════════════════════════════════════════════════════════════════
 # AUTH ROUTES
 # ══════════════════════════════════════════════════════════════════════════════
