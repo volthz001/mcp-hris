@@ -3307,6 +3307,8 @@ def api_kpi_check():
         "sample_ps": list(mongo.db.kpi_ps.find(filt, {"_id":0, "nama_sf":1, "tgl_ps":1}).limit(2))
     })
 
+app.register_blueprint(payroll_bp)
+
 if __name__ == '__main__':
     with app.app_context():
         try: setup_indexes()
