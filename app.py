@@ -34,6 +34,7 @@ from datetime import datetime, date, timedelta,time
 from werkzeug.security import generate_password_hash, check_password_hash
 import logging
 from pythonjsonlogger import jsonlogger
+from api_mobile import api_bp
 
 # Setup logger
 logger = logging.getLogger()
@@ -1046,7 +1047,7 @@ def messages_inbox():
         role_label=_ROLE_LABEL,  # ✅ sekarang terdefinisi
         msg=None
     )
-
+app.register_blueprint(api_bp, url_prefix="/api/v1")
 @app.route("/pesan/<msg_id>")
 @login_required
 def messages_view(msg_id):
