@@ -662,6 +662,11 @@
     <span class="nav-icon">📋</span><span class="nav-label">Kehadiran Saya</span>
   </a>
 </div>
+    <div class="nav-item">
+  <a href="{{ url_for('payroll.my_slips') }}" class="{% if request.endpoint == 'payroll.my_slips' %}active{% endif %}">
+    <span class="nav-icon">🧾</span><span class="nav-label">Slip Gaji Saya</span>
+  </a>
+</div>
 {% if session.role in ['VP'] %}
     <div class="nav-item">
       <a href="/absensi" class="{% if 'absensi' in request.endpoint and request.endpoint not in ['absensi_tambah','absensi_form'] %}active{% endif %}">
@@ -672,6 +677,11 @@
     <div class="nav-item">
       <a href="/kasbon" class="{% if 'kasbon' in request.endpoint and request.endpoint not in ['kasbon_tambah','kasbon_edit'] %}active{% endif %}">
         <span class="nav-icon">◈</span><span class="nav-label">Kasbon</span>
+      </a>
+    </div>
+    <div class="nav-item">
+      <a href="{{ url_for('payroll.index') }}" class="{% if 'payroll' in request.endpoint %}active{% endif %}">
+        <span class="nav-icon">💵</span><span class="nav-label">Payroll</span>
       </a>
     </div>  
     <div class="nav-section-title">Analitik</div>
