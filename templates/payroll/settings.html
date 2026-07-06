@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Pengaturan Akses Payroll — MCP-HRIS{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h4 class="mb-0 fw-bold"><i class="bi bi-shield-lock me-2"></i>Pengaturan Akses Payroll</h4>
+      <small class="text-muted">Atur role mana yang boleh mengelola dan melihat data payroll. Perubahan langsung berlaku tanpa perlu ubah kode.</small>
+    </div>
+    <a href="{{ url_for('payroll.index') }}" class="btn btn-outline-secondary">
+      <i class="bi bi-arrow-left me-1"></i> Kembali
+    </a>
+  </div>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for cat, msg in messages %}
+      <div class="alert alert-{{ cat }} alert-dismissible fade show">{{ msg }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+    {% endfor %}
+  {% endwith %}
+
+  <form method="POST">
+    <div class="row g-4">
+      <div class="col-md-6">
+        <div class="card shadow-sm h-100">
+          <div class="card-header bg-dark text-white">
+            <strong>Bisa Generate &amp; Approve Payroll</strong>
+          </div>
+          <div class="card-body">
+            <p class="text-muted small">Role ini bisa generate periode payroll baru dan menyetujuinya. VP selalu otomatis termasuk.</p>
+            {% for r in all_roles %}
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="roles_manage" value="{{ r }}"
+                     id="manage_{{ r }}"
+                     {% if r in current_manage %}checked{% endif %}
+                     {% if r == 'VP' %}disabled{% endif %}>
+              <label class="form-check-label" for="manage_{{ r }}">{{ r }}</label>
+              {% if r == 'VP' %}<input type="hidden" name="roles_manage" value="VP">{% endif %}
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-6">
+        <div class="card shadow-sm h-100">
+          <div class="card-header bg-dark text-white">
+            <strong>Bisa Lihat Data Payroll Semua Karyawan</strong>
+          </div>
+          <div class="card-body">
+            <p class="text-muted small">Role di luar daftar ini cuma bisa lihat slip gaji miliknya sendiri. VP selalu otomatis termasuk.</p>
+            {% for r in all_roles %}
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="roles_view" value="{{ r }}"
+                     id="view_{{ r }}"
+                     {% if r in current_view %}checked{% endif %}
+                     {% if r == 'VP' %}disabled{% endif %}>
+              <label class="form-check-label" for="view_{{ r }}">{{ r }}</label>
+              {% if r == 'VP' %}<input type="hidden" name="roles_view" value="VP">{% endif %}
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <button type="submit" class="btn btn-primary mt-4">
+      <i class="bi bi-check-circle me-1"></i> Simpan Pengaturan
+    </button>
+  </form>
+</div>
+{% endblock %}
