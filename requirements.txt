@@ -25,6 +25,7 @@ xlrd==2.0.1  # For older .xls format support
 
 # PDF / HTML Export
 WeasyPrint==62.3  # Export laporan ke PDF
+reportlab==4.2.2  # Export slip gaji payroll ke PDF
 
 # Environment Variables
 python-dotenv==1.0.1
