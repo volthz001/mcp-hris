@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+{% block title %}Slip Gaji — {{ slip.nama }}{% endblock %}
+
+{% block content %}
+<div class="container py-4" style="max-width: 720px;">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <a href="{{ url_for('payroll.index') }}" class="text-muted text-decoration-none">
+      <i class="bi bi-arrow-left"></i> Kembali
+    </a>
+    <a href="{{ url_for('payroll.export_slip_pdf', slip_id=slip._id) }}"
+       class="btn btn-danger" target="_blank">
+      <i class="bi bi-file-pdf me-1"></i> Download PDF
+    </a>
+  </div>
+
+  <!-- Header slip -->
+  <div class="card shadow border-0 mb-3">
+    <div class="card-header bg-primary text-white text-center py-3">
+      <h5 class="mb-0 fw-bold">PT MEGA CREATIVE PROMOSINDO</h5>
+      <small>Graha Raya Bintaro, BSD City, Tangerang Selatan</small>
+      <div class="mt-1 fw-bold fs-6">SLIP GAJI KARYAWAN</div>
+    </div>
+    <div class="card-body">
+      <div class="row g-2">
+        <div class="col-6">
+          <table class="table table-sm table-borderless mb-0">
+            <tr><th class="text-muted small" width="40%">Nama</th>
+                <td>{{ slip.nama }}</td></tr>
+            <tr><th class="text-muted small">Jabatan</th>
+                <td>{{ slip.jabatan }}</td></tr>
+            <tr><th class="text-muted small">Departemen</th>
+                <td>{{ slip.departemen or '-' }}</td></tr>
+          </table>
+        </div>
+        <div class="col-6">
+          <table class="table table-sm table-borderless mb-0">
+            <tr><th class="text-muted small" width="40%">Periode</th>
+                <td>{{ slip.periode or '-' }}</td></tr>
+            <tr><th class="text-muted small">Status PTKP</th>
+                <td>{{ slip.status_ptkp }}</td></tr>
+            <tr><th class="text-muted small">Tarif TER</th>
+                <td>{{ slip.ter_persen }}</td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pendapatan -->
+  <div class="card shadow-sm mb-3">
+    <div class="card-header bg-primary text-white py-2">
+      <strong><i class="bi bi-plus-circle me-1"></i>PENDAPATAN</strong>
+    </div>
+    <div class="card-body p-0">
+      <table class="table table-sm mb-0">
+        {% set items = [
+          ('Gaji Pokok', slip.gaji_pokok),
+          ('Tunjangan Tetap', slip.tunjangan_tetap),
+          ('Uang Lembur (' ~ slip.lembur_jam ~ ' jam)', slip.uang_lembur),
+          ('THR / Bonus', slip.thr_bonus),
+        ] %}
+        {% for label, val in items %}
+        <tr>
+          <td>{{ label }}</td>
+          <td class="text-end">Rp {{ "{:,.0f}".format(val or 0).replace(',','.') }}</td>
+        </tr>
+        {% endfor %}
+        <tr class="table-primary fw-bold">
+          <td>TOTAL PENDAPATAN</td>
+          <td class="text-end">
+            Rp {{ "{:,.0f}".format(slip.total_pendapatan).replace(',','.') }}
+          </td>
+        </tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- Potongan -->
+  <div class="card shadow-sm mb-3">
+    <div class="card-header bg-danger text-white py-2">
+      <strong><i class="bi bi-dash-circle me-1"></i>POTONGAN KARYAWAN</strong>
+    </div>
+    <div class="card-body p-0">
+      <table class="table table-sm mb-0">
+        {% set potongan = [
+          ('BPJS JHT Karyawan (2%)', slip.bpjs_jht_karyawan),
+          ('BPJS JP Karyawan (1%)', slip.bpjs_jp_karyawan),
+          ('BPJS Kesehatan Karyawan (1%)', slip.bpjs_kes_karyawan),
+          ('Cicilan Kasbon', slip.potongan_kasbon),
+        ] %}
+        {% for label, val in potongan %}
+        <tr>
+          <td>{{ label }}</td>
+          <td class="text-end text-danger">
+            Rp {{ "{:,.0f}".format(val or 0).replace(',','.') }}
+          </td>
+        </tr>
+        {% endfor %}
+        <tr class="table-danger fw-bold">
+          <td>TOTAL POTONGAN</td>
+          <td class="text-end text-danger">
+            Rp {{ "{:,.0f}".format(slip.total_potongan).replace(',','.') }}
+          </td>
+        </tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- Tanggungan Perusahaan -->
+  <div class="card shadow-sm mb-3">
+    <div class="card-header bg-success text-white py-2">
+      <strong><i class="bi bi-building me-1"></i>TANGGUNGAN PERUSAHAAN</strong>
+    </div>
+    <div class="card-body p-0">
+      <table class="table table-sm mb-0">
+        {% set perusahaan = [
+          ('BPJS JHT Perusahaan (3.7%)', slip.bpjs_jht_perusahaan),
+          ('BPJS JP Perusahaan (2%)', slip.bpjs_jp_perusahaan),
+          ('BPJS JKK', slip.bpjs_jkk),
+          ('BPJS JKM (0.3%)', slip.bpjs_jkm),
+          ('BPJS Kesehatan Perusahaan (4%)', slip.bpjs_kes_perusahaan),
+          ('PPh 21 Nett (' ~ slip.ter_persen ~ ')', slip.pph21),
+        ] %}
+        {% for label, val in perusahaan %}
+        <tr>
+          <td>{{ label }}</td>
+          <td class="text-end">Rp {{ "{:,.0f}".format(val or 0).replace(',','.') }}</td>
+        </tr>
+        {% endfor %}
+        <tr class="table-success fw-bold">
+          <td>TOTAL COST PERUSAHAAN</td>
+          <td class="text-end">
+            Rp {{ "{:,.0f}".format(slip.total_cost_perusahaan).replace(',','.') }}
+          </td>
+        </tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- Gaji bersih -->
+  <div class="card bg-primary text-white shadow">
+    <div class="card-body d-flex justify-content-between align-items-center py-3">
+      <span class="fw-bold fs-5">GAJI BERSIH DITERIMA</span>
+      <span class="fw-bold fs-4">
+        Rp {{ "{:,.0f}".format(slip.gaji_bersih).replace(',','.') }}
+      </span>
+    </div>
+  </div>
+
+  <p class="text-muted text-center small mt-3">
+    Slip ini diterbitkan otomatis oleh sistem MCP-HRIS dan sah tanpa tanda tangan fisik.
+  </p>
+</div>
+{% endblock %}

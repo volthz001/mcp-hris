@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% block title %}Payroll — MCP-HRIS{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="mb-0 fw-bold"><i class="bi bi-cash-stack me-2"></i>Payroll</h4>
+    {% if current_user.role in ['VP', 'GML'] %}
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalGenerate">
+      <i class="bi bi-plus-circle me-1"></i> Generate Payroll
+    </button>
+    {% endif %}
+  </div>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for cat, msg in messages %}
+      <div class="alert alert-{{ cat }} alert-dismissible fade show">{{ msg }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+    {% endfor %}
+  {% endwith %}
+
+  <div class="card shadow-sm">
+    <div class="card-body p-0">
+      <table class="table table-hover mb-0">
+        <thead class="table-dark">
+          <tr>
+            <th>Periode</th>
+            <th>Jml Karyawan</th>
+            <th>Total Cost Perusahaan</th>
+            <th>Status</th>
+            <th>Dibuat</th>
+            <th>Aksi</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in periods %}
+          <tr>
+            <td class="fw-bold">{{ p.periode }}</td>
+            <td>{{ p.jumlah_karyawan or 0 }} orang</td>
+            <td>Rp {{ "{:,.0f}".format(p.total_cost_perusahaan or 0).replace(',', '.') }}</td>
+            <td>
+              {% if p.status == 'approved' %}
+                <span class="badge bg-success">Approved</span>
+              {% else %}
+                <span class="badge bg-warning text-dark">Draft</span>
+              {% endif %}
+            </td>
+            <td>{{ p.created_at.strftime('%d %b %Y') if p.created_at else '-' }}</td>
+            <td>
+              <a href="{{ url_for('payroll.detail_period', period_id=p._id) }}"
+                 class="btn btn-sm btn-outline-primary">
+                <i class="bi bi-eye"></i> Detail
+              </a>
+              {% if p.status == 'draft' and current_user.role == 'VP' %}
+              <button class="btn btn-sm btn-success"
+                      onclick="approvePeriod('{{ p._id }}')">
+                <i class="bi bi-check-circle"></i> Approve
+              </button>
+              {% endif %}
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="6" class="text-center text-muted py-4">Belum ada data payroll.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Generate Payroll -->
+<div class="modal fade" id="modalGenerate" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Generate Payroll</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <label class="form-label fw-bold">Pilih Periode</label>
+        <input type="month" id="inputPeriode" class="form-control"
+               value="{{ now.strftime('%Y-%m') if now else '' }}">
+        <small class="text-muted">Pastikan data absensi dan kasbon sudah lengkap sebelum generate.</small>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+        <button type="button" class="btn btn-primary" onclick="generatePayroll()">
+          <i class="bi bi-gear"></i> Generate
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function generatePayroll() {
+  const periode = document.getElementById('inputPeriode').value;
+  if (!periode) { alert('Pilih periode terlebih dahulu.'); return; }
+
+  const btn = event.target;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Memproses...';
+
+  try {
+    const res = await fetch('/payroll/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ periode }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      alert(`Payroll ${periode} berhasil di-generate untuk ${data.total_slip} karyawan.`);
+      location.reload();
+    } else {
+      alert('Error: ' + (data.error || 'Gagal generate payroll.'));
+    }
+  } catch (e) {
+    alert('Terjadi kesalahan. Coba lagi.');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-gear"></i> Generate';
+  }
+}
+
+async function approvePeriod(periodId) {
+  if (!confirm('Yakin ingin menyetujui payroll ini? Tindakan tidak dapat dibatalkan.')) return;
+  const res = await fetch(`/payroll/approve/${periodId}`, { method: 'POST' });
+  const data = await res.json();
+  if (data.success) {
+    alert('Payroll berhasil disetujui.');
+    location.reload();
+  } else {
+    alert('Gagal: ' + (data.error || 'Unknown error'));
+  }
+}
+</script>
+{% endblock %}

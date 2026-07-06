@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Slip Gaji Saya{% endblock %}
+
+{% block content %}
+<div class="container py-4" style="max-width: 800px;">
+  <h4 class="fw-bold mb-4"><i class="bi bi-receipt me-2"></i>Slip Gaji Saya</h4>
+
+  {% if slips %}
+  <div class="row g-3">
+    {% for s in slips %}
+    <div class="col-md-6">
+      <div class="card shadow-sm border-0 h-100">
+        <div class="card-header bg-light d-flex justify-content-between">
+          <span class="fw-bold">{{ s.periode or s.periode_id }}</span>
+          <span class="badge bg-success">Approved</span>
+        </div>
+        <div class="card-body">
+          <div class="d-flex justify-content-between mb-1">
+            <small class="text-muted">Gaji Bersih</small>
+            <strong class="text-success">
+              Rp {{ "{:,.0f}".format(s.gaji_bersih).replace(',', '.') }}
+            </strong>
+          </div>
+          <div class="d-flex justify-content-between mb-1">
+            <small class="text-muted">Total Pendapatan</small>
+            <span>Rp {{ "{:,.0f}".format(s.total_pendapatan).replace(',', '.') }}</span>
+          </div>
+          <div class="d-flex justify-content-between mb-1">
+            <small class="text-muted">Potongan</small>
+            <span class="text-danger">
+              Rp {{ "{:,.0f}".format(s.total_potongan).replace(',', '.') }}
+            </span>
+          </div>
+          <div class="d-flex justify-content-between">
+            <small class="text-muted">PPh 21 (ditanggung perusahaan)</small>
+            <span class="text-muted">
+              Rp {{ "{:,.0f}".format(s.pph21).replace(',', '.') }}
+            </span>
+          </div>
+        </div>
+        <div class="card-footer bg-white border-0 d-flex gap-2">
+          <a href="{{ url_for('payroll.slip_detail', slip_id=s._id) }}"
+             class="btn btn-sm btn-outline-primary flex-fill">
+            <i class="bi bi-eye"></i> Detail
+          </a>
+          <a href="{{ url_for('payroll.export_slip_pdf', slip_id=s._id) }}"
+             class="btn btn-sm btn-outline-danger flex-fill" target="_blank">
+            <i class="bi bi-file-pdf"></i> PDF
+          </a>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="text-center text-muted py-5">
+    <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+    Belum ada slip gaji yang tersedia.
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
