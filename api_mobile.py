@@ -195,6 +195,43 @@ def _valid_coords(lat, lng, accuracy):
     return True, None
 
 
+@api_bp.route("/notifications/unread-count", methods=["GET"])
+@jwt_required
+def api_notifications_unread_count():
+    count = _db().notifications.count_documents({
+        'userId': g.current_user_id,
+        'isRead': {'$ne': True}
+    })
+    return jsonify({'success': True, 'unreadCount': count})
+
+@api_bp.route("/notifications", methods=["GET"])
+@jwt_required
+def api_notifications_list():
+    notifs = list(_db().notifications.find(
+        {'userId': g.current_user_id}
+    ).sort('createdAt', -1).limit(50))
+    for n in notifs:
+        n['_id'] = str(n['_id'])
+        if n.get('createdAt'):
+            n['createdAt'] = n['createdAt'].isoformat()
+    unread = sum(1 for n in notifs if not n.get('isRead', False))
+    return jsonify({'success': True, 'data': notifs, 'unreadCount': unread})
+
+@api_bp.route("/notifications/<notification_id>/read", methods=["PATCH"])
+@jwt_required
+def api_notification_mark_read(notification_id):
+    from bson.errors import InvalidId
+    try:
+        oid = ObjectId(notification_id)
+    except InvalidId:
+        return _err("ID tidak valid.", 400)
+    result = _db().notifications.update_one(
+        {'_id': oid, 'userId': g.current_user_id},
+        {'$set': {'isRead': True, 'readAt': datetime.utcnow()}}
+    )
+    if result.matched_count == 0:
+        return _err("Notifikasi tidak ditemukan.", 404)
+    return jsonify({'success': True})
 # ══════════════════════════════════════════════════════════════════════════
 # AUTH
 # ══════════════════════════════════════════════════════════════════════════
