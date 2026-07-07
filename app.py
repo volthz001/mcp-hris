@@ -50,6 +50,7 @@ logger.setLevel(logging.INFO)
 # ══════════════════════════════════════════════════════════════════════════════
 app = Flask(__name__)
 csrf = CSRFProtect(app)
+csrf.exempt(api_bp)
 WTF_CSRF_ENABLED = True
 # Load .env hanya jika file ada (development)
 if os.path.exists('.env'):
