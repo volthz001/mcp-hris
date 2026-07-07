@@ -5,7 +5,7 @@ from flask import Blueprint, request, jsonify, session
 from functools import wraps
 from datetime import datetime
 from bson.objectid import ObjectId
-from app import mongo, get_current_user  # Import dari app.py
+from extensions import mongo, get_current_user
 
 notifications_bp = Blueprint('notifications', __name__, url_prefix='/api/notifications')
 
