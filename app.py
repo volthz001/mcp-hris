@@ -37,6 +37,8 @@ import logging
 from pythonjsonlogger import jsonlogger
 from api_mobile import api_bp
 from routes.home import home_bp
+from routes.notifications import notifications_bp
+from routes.messages import messages_bp
 
 # Setup logger
 logger = logging.getLogger()
@@ -52,6 +54,8 @@ logger.setLevel(logging.INFO)
 # ══════════════════════════════════════════════════════════════════════════════
 app = Flask(__name__)
 app.register_blueprint(home_bp)
+app.register_blueprint(notifications_bp)
+app.register_blueprint(messages_bp)
 csrf = CSRFProtect(app)
 csrf.exempt(api_bp)
 WTF_CSRF_ENABLED = True
