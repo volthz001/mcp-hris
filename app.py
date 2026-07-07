@@ -10,6 +10,7 @@ Flask + Flask-PyMongo + Session-based Auth (TANPA Flask-Login)
 # Di bagian atas app.py, setelah import lainnya
 #from email_utils import send_password_reset_email, send_reset_confirmation_email
 from flask_limiter import Limiter
+from flask_cors import CORS
 from flask_limiter.util import get_remote_address
 import os, io, calendar, json
 import hashlib
@@ -96,7 +97,7 @@ if not MONGO_URI:
     raise ValueError("MONGO_URI harus diset di environment variable!")
 
 app.config["MONGO_URI"] = MONGO_URI
-
+CORS(app, resources={r"/api/*": {"origins": "*"}})
 # ══════════════════════════════════════════════════════════════════════════════
 # 4. KONFIGURASI SESSION (KEAMANAN COOKIE)
 # ══════════════════════════════════════════════════════════════════════════════
