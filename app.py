@@ -98,6 +98,7 @@ if not MONGO_URI:
 
 app.config["MONGO_URI"] = MONGO_URI
 CORS(app, resources={r"/api/*": {"origins": "*"}})
+app.register_blueprint(home_bp)
 # ══════════════════════════════════════════════════════════════════════════════
 # 4. KONFIGURASI SESSION (KEAMANAN COOKIE)
 # ══════════════════════════════════════════════════════════════════════════════
