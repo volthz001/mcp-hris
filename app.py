@@ -76,29 +76,37 @@ if not SECRET_KEY:
         # Development: generate otomatis (tapi berubah tiap restart)
         SECRET_KEY = secrets.token_hex(32)
         print("⚠️ PERINGATAN: Menggunakan SECRET_KEY sementara (random). Tetapkan di .env untuk persistensi session.")
-
+# ══════════════════════════════════════════════════════════════════════════════
+# 3. MONGODB URI (WAJIB DARI ENVIRONMENT, TIDAK ADA FALLBACK)
+# ══════════════════════════════════════════════════════════════════════════════
 app.secret_key = SECRET_KEY
+
+# ✅ Set MONGO_URI ke app.config DULU sebelum init_app
+MONGO_URI = os.environ.get("MONGO_URI")
+if not MONGO_URI:
+    raise ValueError("MONGO_URI harus diset di environment variable!")
+
+app.config["MONGO_URI"] = MONGO_URI
+
 limiter = Limiter(
     get_remote_address,
     app=app,
     default_limits=["200 per day", "50 per hour"]
 )
-mongo.init_app(app)
-# ══════════════════════════════════════════════════════════════════════════════
-# 3. MONGODB URI (WAJIB DARI ENVIRONMENT, TIDAK ADA FALLBACK)
-# ══════════════════════════════════════════════════════════════════════════════
-MONGO_URI = os.environ.get("MONGO_URI")
-# Buat client dengan connection pool
+
+# ✅ Baru panggil init_app setelah config siap
+mongo.init_app(app)   # pakai yang dari extensions.py
+
+# ✅ MongoClient untuk connection pool langsung
 client = MongoClient(
     MONGO_URI,
-    maxPoolSize=50,          # Maksimal 50 koneksi simultan
-    minPoolSize=10,          # Minimal 10 koneksi standby
-    maxIdleTimeMS=60000,     # Tutup koneksi idle setelah 60 detik
-    connectTimeoutMS=5000,   # Timeout koneksi 5 detik
-    socketTimeoutMS=30000    # Timeout baca/tulis 30 detik
+    maxPoolSize=50,
+    minPoolSize=10,
+    maxIdleTimeMS=60000,
+    connectTimeoutMS=5000,
+    socketTimeoutMS=30000
 )
-db = client.get_database()  # Ambil database dari URI
-
+db = client.get_database()
 if not MONGO_URI:
     raise ValueError("MONGO_URI harus diset di environment variable!")
 
