@@ -39,6 +39,7 @@ from api_mobile import api_bp
 from routes.home import home_bp
 from routes.notifications import notifications_bp
 from routes.messages import messages_bp
+from extensions import mongo, get_current_user
 
 # Setup logger
 logger = logging.getLogger()
@@ -82,6 +83,7 @@ limiter = Limiter(
     app=app,
     default_limits=["200 per day", "50 per hour"]
 )
+mongo.init_app(app)
 # ══════════════════════════════════════════════════════════════════════════════
 # 3. MONGODB URI (WAJIB DARI ENVIRONMENT, TIDAK ADA FALLBACK)
 # ══════════════════════════════════════════════════════════════════════════════
