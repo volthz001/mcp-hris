@@ -38,7 +38,7 @@ from pythonjsonlogger import jsonlogger
 from api_mobile import api_bp
 from routes.home import home_bp
 from routes.notifications import notifications_bp
-from routes.messages import messages_bp
+from messaging_routes import messages_bp
 
 # Setup logger
 logger = logging.getLogger()
