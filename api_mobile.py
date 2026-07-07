@@ -40,12 +40,22 @@ GEOFENCE:
   bisa dilewati cuma dengan hit API langsung tanpa lewat app).
 - Koordinat & accuracy tetap DISIMPAN di setiap record absensi untuk audit
   trail — sebelumnya backend sama sekali tidak menyimpan lokasi.
+
+NOTIFICATIONS:
+- Skema notifikasi mengikuti app.py: target_ids (list str), target_all (bool),
+  reads (array {user_id, read_at}), title/body/type/created_at.
+- Vris menggunakan 5 endpoint:
+    GET  /api/v1/notifications/unread-count   → badge count
+    GET  /api/v1/notifications                → list (paginated)
+    PATCH /api/v1/notifications/<id>/read     → tandai 1 notif dibaca
+    POST  /api/v1/notifications/mark-all-read → tandai semua dibaca
+    DELETE /api/v1/notifications/<id>         → hapus (personal notif saja)
 """
 
 import jwt
+
 from datetime import datetime, date, timedelta
 from functools import wraps
-
 from flask import Blueprint, request, jsonify, current_app, g
 from bson import ObjectId
 from bson.errors import InvalidId
@@ -53,11 +63,11 @@ from werkzeug.security import check_password_hash
 
 api_bp = Blueprint("api_mobile", __name__)
 
-ACCESS_TOKEN_TTL = timedelta(minutes=15)
+ACCESS_TOKEN_TTL  = timedelta(minutes=15)
 REFRESH_TOKEN_TTL = timedelta(days=7)
 
-KASBON_LIMIT = 500_000
-KASBON_MIN = 50_000
+KASBON_LIMIT      = 500_000
+KASBON_MIN        = 50_000
 KASBON_WINDOW_DAYS = 30
 
 
@@ -79,26 +89,27 @@ def _err(message, status=400, code=None):
 
 def _issue_tokens(user):
     now = datetime.utcnow()
-    tv = user.get("token_version", 0)
+    tv  = user.get("token_version", 0)
     uid = str(user["_id"])
 
     access_payload = {
-        "sub": uid,
+        "sub":  uid,
         "role": user.get("role") or user.get("jabatan", "SF"),
-        "tv": tv,
+        "tv":   tv,
         "type": "access",
-        "iat": now,
-        "exp": now + ACCESS_TOKEN_TTL,
+        "iat":  now,
+        "exp":  now + ACCESS_TOKEN_TTL,
     }
     refresh_payload = {
-        "sub": uid,
-        "tv": tv,
+        "sub":  uid,
+        "tv":   tv,
         "type": "refresh",
-        "iat": now,
-        "exp": now + REFRESH_TOKEN_TTL,
+        "iat":  now,
+        "exp":  now + REFRESH_TOKEN_TTL,
     }
-    secret = current_app.secret_key
-    access_token = jwt.encode(access_payload, secret, algorithm="HS256")
+
+    secret        = current_app.secret_key
+    access_token  = jwt.encode(access_payload,  secret, algorithm="HS256")
     refresh_token = jwt.encode(refresh_payload, secret, algorithm="HS256")
     return access_token, refresh_token
 
@@ -116,17 +127,17 @@ def _decode(token):
 
 def serialize_user(user):
     return {
-        "id": str(user["_id"]),
+        "id":       str(user["_id"]),
         "username": user.get("username", ""),
-        "name": user.get("nama") or user.get("full_name") or user.get("username", ""),
-        "nama": user.get("nama", ""),
-        "email": user.get("email", ""),
-        "role": user.get("role") or user.get("jabatan", "SF"),
-        "nik": user.get("nik", ""),
-        "no_hp": user.get("no_hp", ""),
-        "alamat": user.get("alamat", ""),
-        "wok": user.get("wok", ""),
-        "area": user.get("area", ""),
+        "name":     user.get("nama") or user.get("full_name") or user.get("username", ""),
+        "nama":     user.get("nama", ""),
+        "email":    user.get("email", ""),
+        "role":     user.get("role") or user.get("jabatan", "SF"),
+        "nik":      user.get("nik", ""),
+        "no_hp":    user.get("no_hp", ""),
+        "alamat":   user.get("alamat", ""),
+        "wok":      user.get("wok", ""),
+        "area":     user.get("area", ""),
     }
 
 
@@ -141,6 +152,7 @@ def jwt_required(f):
         payload, error = _decode(token)
         if error:
             return _err(error, 401)
+
         if payload.get("type") != "access":
             return _err("Token bukan access token.", 401)
 
@@ -151,18 +163,19 @@ def jwt_required(f):
 
         if not user:
             return _err("User tidak ditemukan.", 401)
+
         if user.get("is_locked", False):
             return _err("Akun Anda dikunci. Hubungi administrator.", 403, "ACCOUNT_LOCKED")
+
         if user.get("status") == "pending":
             return _err("Akun belum diaktivasi.", 403, "ACCOUNT_PENDING")
+
         if user.get("token_version", 0) != payload.get("tv"):
-            # Token diterbitkan sebelum akun di-lock/ganti-password/logout-paksa.
             return _err("Sesi tidak berlaku lagi. Silakan login ulang.", 401, "TOKEN_REVOKED")
 
-        g.current_user = user
+        g.current_user    = user
         g.current_user_id = str(user["_id"])
         return f(*args, **kwargs)
-
     return decorated
 
 
@@ -188,57 +201,17 @@ def _valid_coords(lat, lng, accuracy):
     if not (-90 <= lat <= 90) or not (-180 <= lng <= 180):
         return False, "Koordinat di luar jangkauan valid."
     if accuracy <= 0:
-        # Sinyal fake-GPS murahan (accuracy sempurna/0), sama seperti heuristik
-        # client di mock_location_service.dart — dicek ulang di server supaya
-        # tidak bisa dilewati dengan hit API langsung tanpa app.
         return False, "Data akurasi lokasi mencurigakan. Aktifkan GPS dengan sinyal yang wajar."
     return True, None
 
 
-@api_bp.route("/notifications/unread-count", methods=["GET"])
-@jwt_required
-def api_notifications_unread_count():
-    count = _db().notifications.count_documents({
-        'userId': g.current_user_id,
-        'isRead': {'$ne': True}
-    })
-    return jsonify({'success': True, 'unreadCount': count})
-
-@api_bp.route("/notifications", methods=["GET"])
-@jwt_required
-def api_notifications_list():
-    notifs = list(_db().notifications.find(
-        {'userId': g.current_user_id}
-    ).sort('createdAt', -1).limit(50))
-    for n in notifs:
-        n['_id'] = str(n['_id'])
-        if n.get('createdAt'):
-            n['createdAt'] = n['createdAt'].isoformat()
-    unread = sum(1 for n in notifs if not n.get('isRead', False))
-    return jsonify({'success': True, 'data': notifs, 'unreadCount': unread})
-
-@api_bp.route("/notifications/<notification_id>/read", methods=["PATCH"])
-@jwt_required
-def api_notification_mark_read(notification_id):
-    from bson.errors import InvalidId
-    try:
-        oid = ObjectId(notification_id)
-    except InvalidId:
-        return _err("ID tidak valid.", 400)
-    result = _db().notifications.update_one(
-        {'_id': oid, 'userId': g.current_user_id},
-        {'$set': {'isRead': True, 'readAt': datetime.utcnow()}}
-    )
-    if result.matched_count == 0:
-        return _err("Notifikasi tidak ditemukan.", 404)
-    return jsonify({'success': True})
 # ══════════════════════════════════════════════════════════════════════════
 # AUTH
 # ══════════════════════════════════════════════════════════════════════════
 
 @api_bp.route("/auth/login", methods=["POST"])
 def api_login():
-    data = request.get_json(silent=True) or {}
+    data     = request.get_json(silent=True) or {}
     username = (data.get("username") or "").strip()
     password = (data.get("password") or "").strip()
 
@@ -248,24 +221,27 @@ def api_login():
     user = _db().users.find_one({"username": username})
     if not user:
         return _err("Username tidak ditemukan.", 401)
+
     if user.get("is_locked", False):
         return _err("Akun Anda dikunci. Hubungi administrator.", 403, "ACCOUNT_LOCKED")
+
     if user.get("status") == "pending":
         return _err("Akun belum diaktivasi oleh VP/GML.", 403, "ACCOUNT_PENDING")
+
     if not check_password_hash(user.get("password", ""), password):
         return _err("Password salah.", 401)
 
     access_token, refresh_token = _issue_tokens(user)
     return jsonify({
-        "access_token": access_token,
+        "access_token":  access_token,
         "refresh_token": refresh_token,
-        "user": serialize_user(user),
+        "user":          serialize_user(user),
     })
 
 
 @api_bp.route("/auth/refresh", methods=["POST"])
 def api_refresh():
-    data = request.get_json(silent=True) or {}
+    data  = request.get_json(silent=True) or {}
     token = data.get("refresh_token")
     if not token:
         return _err("refresh_token wajib diisi.")
@@ -273,6 +249,7 @@ def api_refresh():
     payload, error = _decode(token)
     if error:
         return _err(error, 401)
+
     if payload.get("type") != "refresh":
         return _err("Token bukan refresh token.", 401)
 
@@ -283,6 +260,7 @@ def api_refresh():
 
     if not user or user.get("is_locked", False) or user.get("status") == "pending":
         return _err("Sesi tidak berlaku. Silakan login ulang.", 401)
+
     if user.get("token_version", 0) != payload.get("tv"):
         return _err("Sesi tidak berlaku lagi. Silakan login ulang.", 401, "TOKEN_REVOKED")
 
@@ -300,7 +278,6 @@ def api_me():
 @jwt_required
 def api_logout():
     # Increment token_version = seluruh token user ini (semua device) invalid.
-    # Lihat catatan trade-off di docstring atas file.
     _db().users.update_one(
         {"_id": g.current_user["_id"]},
         {"$inc": {"token_version": 1}},
@@ -329,14 +306,14 @@ def _absensi_to_json(rec):
         return f"{tanggal}T{jam}"
 
     return {
-        "id": str(rec["_id"]),
-        "status": rec.get("status") or "alpha",
-        "check_in_time": combine(rec.get("jam_masuk")),
+        "id":             str(rec["_id"]),
+        "status":         rec.get("status") or "alpha",
+        "check_in_time":  combine(rec.get("jam_masuk")),
         "check_out_time": combine(rec.get("jam_keluar")),
-        "check_in_lat": rec.get("lat_masuk"),
-        "check_in_lng": rec.get("lng_masuk"),
-        "check_out_lat": rec.get("lat_keluar"),
-        "check_out_lng": rec.get("lng_keluar"),
+        "check_in_lat":   rec.get("lat_masuk"),
+        "check_in_lng":   rec.get("lng_masuk"),
+        "check_out_lat":  rec.get("lat_keluar"),
+        "check_out_lng":  rec.get("lng_keluar"),
     }
 
 
@@ -348,11 +325,10 @@ def api_checkin():
     if not ok:
         return _err(msg)
 
-    db = _db()
+    db   = _db()
     user = g.current_user
-    uid = g.current_user_id
+    uid  = g.current_user_id
     today_str, now = _wib_today_str()
-
     nama = user.get("nama") or user.get("full_name") or user.get("username")
 
     existing = db.absensi.find_one({"user_id": uid, "tanggal": today_str})
@@ -361,20 +337,20 @@ def api_checkin():
 
     jam_masuk_str = now.strftime("%H:%M:%S")
     update = {
-        "user_id": uid,
-        "nama_karyawan": nama,
-        "nik": user.get("nik", ""),
-        "tanggal": today_str,
-        "area": user.get("area", ""),
-        "gml_id": user.get("gml_id"),
-        "wok_id": user.get("wok_id"),
-        "tl_id": user.get("tl_id"),
-        "jam_masuk": jam_masuk_str,
-        "status": "hadir",
-        "lat_masuk": float(data["lat"]),
-        "lng_masuk": float(data["lng"]),
+        "user_id":        uid,
+        "nama_karyawan":  nama,
+        "nik":            user.get("nik", ""),
+        "tanggal":        today_str,
+        "area":           user.get("area", ""),
+        "gml_id":         user.get("gml_id"),
+        "wok_id":         user.get("wok_id"),
+        "tl_id":          user.get("tl_id"),
+        "jam_masuk":      jam_masuk_str,
+        "status":         "hadir",
+        "lat_masuk":      float(data["lat"]),
+        "lng_masuk":      float(data["lng"]),
         "accuracy_masuk": float(data["accuracy"]),
-        "updated_at": now,
+        "updated_at":     now,
     }
     db.absensi.update_one(
         {"user_id": uid, "tanggal": today_str},
@@ -393,7 +369,7 @@ def api_checkout():
     if not ok:
         return _err(msg)
 
-    db = _db()
+    db  = _db()
     uid = g.current_user_id
     today_str, now = _wib_today_str()
 
@@ -403,23 +379,18 @@ def api_checkout():
     if existing.get("jam_keluar"):
         return _err("Anda sudah check-out hari ini.", 409)
 
-    # CATATAN: web mewajibkan `keterangan_checkout` diisi manual. Vris saat
-    # ini tidak mengirim field ini sama sekali — dibuat opsional di sini
-    # supaya tidak blocking. Kalau kamu mau paritas penuh dengan web,
-    # tambahin input teks di UI check-out Flutter dan kirim sebagai
-    # `note` di body request.
     keterangan_checkout = (data.get("note") or "").strip()
-
     jam_keluar_str = now.strftime("%H:%M:%S")
+
     db.absensi.update_one(
         {"_id": existing["_id"]},
         {"$set": {
-            "jam_keluar": jam_keluar_str,
-            "keterangan_checkout": keterangan_checkout,
-            "lat_keluar": float(data["lat"]),
-            "lng_keluar": float(data["lng"]),
-            "accuracy_keluar": float(data["accuracy"]),
-            "updated_at": now,
+            "jam_keluar":           jam_keluar_str,
+            "keterangan_checkout":  keterangan_checkout,
+            "lat_keluar":           float(data["lat"]),
+            "lng_keluar":           float(data["lng"]),
+            "accuracy_keluar":      float(data["accuracy"]),
+            "updated_at":           now,
         }}
     )
     rec = db.absensi.find_one({"_id": existing["_id"]})
@@ -438,12 +409,12 @@ def api_attendance_today():
 @jwt_required
 def api_attendance_history():
     month = request.args.get("month", type=int)
-    year = request.args.get("year", type=int)
+    year  = request.args.get("year",  type=int)
     today = date.today()
     month = month or today.month
-    year = year or today.year
+    year  = year  or today.year
 
-    prefix = f"{year:04d}-{month:02d}"
+    prefix  = f"{year:04d}-{month:02d}"
     records = list(
         _db().absensi.find({
             "user_id": g.current_user_id,
@@ -459,12 +430,12 @@ def api_attendance_history():
 
 def _kasbon_to_json(k):
     return {
-        "id": str(k["_id"]),
-        "amount": k.get("nominal", 0),
-        "reason": k.get("keterangan", ""),
-        "status": k.get("status", "pending"),
-        "created_at": k["created_at"].isoformat() if k.get("created_at") else None,
-        "approver_name": k.get("approved_by"),
+        "id":             str(k["_id"]),
+        "amount":         k.get("nominal", 0),
+        "reason":         k.get("keterangan", ""),
+        "status":         k.get("status", "pending"),
+        "created_at":     k["created_at"].isoformat() if k.get("created_at") else None,
+        "approver_name":  k.get("approved_by"),
         "rejection_note": k.get("rejection_note"),
     }
 
@@ -473,7 +444,7 @@ def _kasbon_to_json(k):
 @jwt_required
 def api_kasbon_list():
     role = g.current_user.get("role") or g.current_user.get("jabatan", "SF")
-    db = _db()
+    db   = _db()
     if role in ("VP", "GML"):
         items = list(db.kasbon.find({}).sort("created_at", -1).limit(200))
     else:
@@ -489,41 +460,44 @@ def api_kasbon_create():
         nominal = float(data.get("amount"))
     except (TypeError, ValueError):
         return _err("amount wajib berupa angka.")
+
     reason = (data.get("reason") or "").strip()
 
     if nominal < KASBON_MIN or nominal > KASBON_LIMIT:
         return _err(f"Nominal harus antara Rp {KASBON_MIN:,.0f} dan Rp {KASBON_LIMIT:,.0f}.")
 
-    db = _db()
+    db  = _db()
     uid = g.current_user_id
+
     cutoff = datetime.now() - timedelta(days=KASBON_WINDOW_DAYS)
     agg = list(db.kasbon.aggregate([
         {"$match": {
             "user_id": uid,
-            "status": {"$in": ["approved", "pending"]},
+            "status":  {"$in": ["approved", "pending"]},
             "created_at": {"$gte": cutoff},
         }},
         {"$group": {"_id": None, "total": {"$sum": "$nominal"}}},
     ]))
-    used_30d = agg[0]["total"] if agg else 0
+    used_30d  = agg[0]["total"] if agg else 0
     remaining = KASBON_LIMIT - used_30d
+
     if nominal > remaining:
         return _err(f"Kuota tidak cukup. Sisa kuota: Rp {remaining:,.0f}.", 409)
 
     today = date.today()
     doc = {
-        "user_id": uid,
-        "nama": g.current_user.get("nama") or g.current_user.get("username", "?"),
-        "nominal": nominal,
-        "keterangan": reason,
-        "status": "pending",
-        "bulan": today.month,
-        "tahun": today.year,
-        "created_at": datetime.now(),
+        "user_id":     uid,
+        "nama":        g.current_user.get("nama") or g.current_user.get("username", "?"),
+        "nominal":     nominal,
+        "keterangan":  reason,
+        "status":      "pending",
+        "bulan":       today.month,
+        "tahun":       today.year,
+        "created_at":  datetime.now(),
         "approved_by": None,
         "approved_at": None,
     }
-    result = db.kasbon.insert_one(doc)
+    result     = db.kasbon.insert_one(doc)
     doc["_id"] = result.inserted_id
     return jsonify({"data": _kasbon_to_json(doc)}), 201
 
@@ -536,11 +510,12 @@ def api_kasbon_approve(kasbon_id):
         oid = ObjectId(kasbon_id)
     except InvalidId:
         return _err("ID kasbon tidak valid.", 404)
-    db = _db()
+
+    db     = _db()
     result = db.kasbon.update_one(
         {"_id": oid},
         {"$set": {
-            "status": "approved",
+            "status":      "approved",
             "approved_by": g.current_user.get("nama") or g.current_user.get("username", "?"),
             "approved_at": datetime.now(),
         }}
@@ -559,13 +534,14 @@ def api_kasbon_reject(kasbon_id):
         oid = ObjectId(kasbon_id)
     except InvalidId:
         return _err("ID kasbon tidak valid.", 404)
-    db = _db()
+
+    db     = _db()
     result = db.kasbon.update_one(
         {"_id": oid},
         {"$set": {
-            "status": "rejected",
-            "approved_by": g.current_user.get("nama") or g.current_user.get("username", "?"),
-            "approved_at": datetime.now(),
+            "status":         "rejected",
+            "approved_by":    g.current_user.get("nama") or g.current_user.get("username", "?"),
+            "approved_at":    datetime.now(),
             "rejection_note": (data.get("note") or "").strip(),
         }}
     )
@@ -582,23 +558,215 @@ def api_kasbon_reject(kasbon_id):
 @jwt_required
 @role_required_api("VP", "GML")
 def api_kpi_dashboard():
-    # Import lokal supaya tidak circular-import dengan app.py.
     from app import get_kpi_data_for_month, _empty_kpi_data
-
     today = date.today()
     month = request.args.get("month", default=today.month, type=int)
-    year = request.args.get("year", default=today.year, type=int)
-    wok = (request.args.get("wok") or g.current_user.get("wok") or "JAKTIM").upper()
+    year  = request.args.get("year",  default=today.year,  type=int)
+    wok   = (request.args.get("wok") or g.current_user.get("wok") or "JAKTIM").upper()
 
     has_data = _db().kpi_ps.count_documents({"month": month, "year": year, "wok": wok}) > 0
-    ctx = get_kpi_data_for_month(month, year, wok) if has_data else _empty_kpi_data(month, year, wok)
+    ctx      = get_kpi_data_for_month(month, year, wok) if has_data else _empty_kpi_data(month, year, wok)
 
-    # Remap 2 nama field supaya cocok persis dengan KpiSummary.fromJson di Flutter:
     top_sf = [
         {"nama": nama, "ps": ps}
         for nama, ps in zip(ctx.get("top_sf_labels", []), ctx.get("top_sf_values", []))
     ]
-    ctx["top_sf"] = top_sf
+    ctx["top_sf"]           = top_sf
     ctx["tl_summary_table"] = ctx.get("tl_details", [])
-
     return jsonify(ctx)
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# NOTIFICATIONS
+#
+# Skema MongoDB (collection: notifications):
+#   {
+#     _id:        ObjectId,
+#     title:      str,
+#     body:       str,
+#     type:       str   ("info" | "warning" | "urgent" | ...),
+#     link:       str   (opsional — deep-link dalam app),
+#     from_nama:  str   (nama pengirim),
+#     target_ids: [str] (list user_id penerima; kosong jika target_all),
+#     target_all: bool  (True = siaran ke semua user),
+#     reads:      [{user_id: str, read_at: datetime}],
+#     created_at: datetime,
+#   }
+#
+# Tidak ada skema baru — ini persis field yang sudah dipakai app.py
+# ketika mengirim notifikasi dari fitur messages_compose / broadcast.
+# ══════════════════════════════════════════════════════════════════════════
+
+def _notif_query(uid: str) -> dict:
+    """Query MongoDB untuk notifikasi yang relevan bagi user ini."""
+    return {"$or": [{"target_ids": uid}, {"target_all": True}]}
+
+
+def _serialize_notif(n: dict, uid: str) -> dict:
+    """Konversi dokumen MongoDB ke dict JSON-safe untuk Vris."""
+    reads   = [r.get("user_id") for r in n.get("reads", [])]
+    is_read = uid in reads
+
+    created = n.get("created_at") or n.get("createdAt")
+    return {
+        "id":         str(n["_id"]),
+        "title":      n.get("title")     or n.get("judul") or "(tanpa judul)",
+        "body":       n.get("body")      or n.get("isi")   or "",
+        "type":       n.get("type")      or n.get("priority") or "info",
+        "isRead":     is_read,
+        "link":       n.get("link", ""),
+        "senderName": n.get("from_nama", ""),
+        "createdAt":  created.isoformat() if created else None,
+    }
+
+
+@api_bp.route("/notifications/unread-count", methods=["GET"])
+@jwt_required
+def api_notifications_unread_count():
+    """
+    GET /api/v1/notifications/unread-count
+    Dipakai oleh NotificationsProvider.refreshCount() di Vris — dipanggil
+    setiap HomeShell mount supaya badge di drawer selalu up-to-date.
+
+    Response: { "success": true, "unreadCount": 3 }
+    """
+    uid = g.current_user_id
+    try:
+        count = _db().notifications.count_documents({
+            **_notif_query(uid),
+            "reads": {"$not": {"$elemMatch": {"user_id": uid}}},
+        })
+        return jsonify({"success": True, "unreadCount": count}), 200
+    except Exception as e:
+        return _err(str(e), 500)
+
+
+@api_bp.route("/notifications", methods=["GET"])
+@jwt_required
+def api_notifications_list():
+    """
+    GET /api/v1/notifications?page=1&limit=20
+    Dipakai oleh NotificationsRepository.getList() di Vris.
+
+    Response: {
+      "success": true,
+      "data": [...],
+      "unreadCount": 3,
+      "total": 15,
+      "page": 1,
+      "limit": 20
+    }
+    """
+    uid   = g.current_user_id
+    page  = max(1, int(request.args.get("page",  1)))
+    limit = min(50, max(1, int(request.args.get("limit", 20))))
+    skip  = (page - 1) * limit
+
+    q = _notif_query(uid)
+    try:
+        total = _db().notifications.count_documents(q)
+        docs  = list(
+            _db().notifications.find(q)
+            .sort("created_at", -1)
+            .skip(skip)
+            .limit(limit)
+        )
+        items  = [_serialize_notif(n, uid) for n in docs]
+        unread = sum(1 for i in items if not i["isRead"])
+
+        return jsonify({
+            "success":     True,
+            "data":        items,
+            "unreadCount": unread,
+            "total":       total,
+            "page":        page,
+            "limit":       limit,
+        }), 200
+    except Exception as e:
+        return _err(str(e), 500)
+
+
+@api_bp.route("/notifications/<notification_id>/read", methods=["PATCH"])
+@jwt_required
+def api_notifications_mark_read(notification_id):
+    """
+    PATCH /api/v1/notifications/<id>/read
+    Tandai satu notifikasi sebagai sudah dibaca.
+    Idempotent: dipanggil berkali-kali hasilnya sama.
+
+    Response: { "success": true }
+    """
+    uid = g.current_user_id
+    try:
+        oid = ObjectId(notification_id)
+    except InvalidId:
+        return _err("ID notifikasi tidak valid.", 400)
+
+    try:
+        # $push dengan kondisi user_id belum ada di reads → idempotent
+        _db().notifications.update_one(
+            {
+                "_id": oid,
+                **_notif_query(uid),
+                "reads.user_id": {"$ne": uid},
+            },
+            {"$push": {"reads": {"user_id": uid, "read_at": datetime.utcnow()}}},
+        )
+        # matched_count 0 = sudah dibaca sebelumnya atau tidak ditemukan;
+        # keduanya bukan error dari perspektif client.
+        return jsonify({"success": True}), 200
+    except Exception as e:
+        return _err(str(e), 500)
+
+
+@api_bp.route("/notifications/mark-all-read", methods=["POST"])
+@jwt_required
+def api_notifications_mark_all_read():
+    """
+    POST /api/v1/notifications/mark-all-read
+    Dipakai oleh NotificationsRepository.markAllRead() di Vris.
+
+    Response: { "success": true, "updated": 5 }
+    """
+    uid = g.current_user_id
+    try:
+        result = _db().notifications.update_many(
+            {
+                **_notif_query(uid),
+                "reads.user_id": {"$ne": uid},
+            },
+            {"$push": {"reads": {"user_id": uid, "read_at": datetime.utcnow()}}},
+        )
+        return jsonify({"success": True, "updated": result.modified_count}), 200
+    except Exception as e:
+        return _err(str(e), 500)
+
+
+@api_bp.route("/notifications/<notification_id>", methods=["DELETE"])
+@jwt_required
+def api_notifications_delete(notification_id):
+    """
+    DELETE /api/v1/notifications/<id>
+    Hapus notifikasi personal (target_ids mengandung user ini).
+    Notifikasi broadcast (target_all=True) tidak bisa dihapus dari sisi user —
+    harus dari admin di web.
+
+    Response: { "success": true }
+    """
+    uid = g.current_user_id
+    try:
+        oid = ObjectId(notification_id)
+    except InvalidId:
+        return _err("ID notifikasi tidak valid.", 400)
+
+    try:
+        result = _db().notifications.delete_one({
+            "_id":        oid,
+            "target_ids": uid,
+            "target_all": {"$ne": True},
+        })
+        if result.deleted_count == 0:
+            return _err("Notifikasi tidak ditemukan atau tidak dapat dihapus.", 404)
+        return jsonify({"success": True}), 200
+    except Exception as e:
+        return _err(str(e), 500)
