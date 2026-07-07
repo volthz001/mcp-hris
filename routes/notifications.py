@@ -1,22 +1,42 @@
 # routes/notifications.py
-# Disesuaikan dengan struktur app.py (session-based auth, tanpa JWT)
+# Disesuaikan: sekarang menerima session (web) MAUPUN JWT Bearer (Vris/mobile)
 
-from flask import Blueprint, request, jsonify, session
+import jwt as pyjwt
+from flask import Blueprint, request, jsonify, session, current_app
 from functools import wraps
 from datetime import datetime
 from bson.objectid import ObjectId
 from extensions import mongo, get_current_user
 
-# routes/notifications.py
 notifications_bp = Blueprint('notifications', __name__, url_prefix='/api/v1/notifications')
 
-# ─── Decorator Auth (sama seperti di app.py) ──────────────────────────────
+# ─── Helper: coba ambil user_id dari JWT Bearer (format sama seperti api_mobile.py) ──
+def _uid_from_jwt():
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        return None
+    token = auth_header.split(" ", 1)[1].strip()
+    try:
+        payload = pyjwt.decode(token, current_app.secret_key, algorithms=["HS256"])
+        if payload.get("type") != "access":
+            return None
+        user = mongo.db.users.find_one({"_id": ObjectId(payload["sub"])})
+        if not user or user.get("is_locked") or user.get("status") == "pending":
+            return None
+        if user.get("token_version", 0) != payload.get("tv"):
+            return None
+        return str(user["_id"])
+    except Exception:
+        return None
+
+# ─── Decorator Auth: session (web) ATAU JWT (mobile/Vris) ────────────────
 def login_required_api(f):
-    """Decorator untuk API: cek session login."""
     @wraps(f)
     def decorated(*args, **kwargs):
-        if "user_id" not in session:
+        uid = session.get("user_id") or _uid_from_jwt()
+        if not uid:
             return jsonify({"error": "Unauthorized", "message": "Silakan login terlebih dahulu"}), 401
+        request.auth_user_id = uid  # dipakai semua route di bawah, ganti session.get("user_id")
         return f(*args, **kwargs)
     return decorated
 
@@ -24,21 +44,19 @@ def login_required_api(f):
 @notifications_bp.route('', methods=['GET'])
 @login_required_api
 def get_notifications():
-    """Ambil semua notifikasi untuk user yang sedang login."""
-    user_id = session.get("user_id")
+    user_id = request.auth_user_id
     try:
         notifications = list(mongo.db.notifications.find(
             {'userId': user_id}
         ).sort('createdAt', -1))
-        
-        # Konversi ObjectId ke string untuk JSON response
+
         for notif in notifications:
             notif['_id'] = str(notif['_id'])
             if notif.get('createdAt'):
                 notif['createdAt'] = notif['createdAt'].isoformat()
-        
+
         unread_count = sum(1 for n in notifications if not n.get('isRead', False))
-        
+
         return jsonify({
             'success': True,
             'data': notifications,
@@ -52,8 +70,7 @@ def get_notifications():
 @notifications_bp.route('/<notification_id>/read', methods=['PATCH'])
 @login_required_api
 def mark_notification_read(notification_id):
-    """Tandai satu notifikasi sebagai sudah dibaca."""
-    user_id = session.get("user_id")
+    user_id = request.auth_user_id
     try:
         result = mongo.db.notifications.update_one(
             {'_id': ObjectId(notification_id), 'userId': user_id},
@@ -69,8 +86,7 @@ def mark_notification_read(notification_id):
 @notifications_bp.route('/read-all', methods=['POST'])
 @login_required_api
 def mark_all_read():
-    """Tandai semua notifikasi user sebagai sudah dibaca."""
-    user_id = session.get("user_id")
+    user_id = request.auth_user_id
     try:
         result = mongo.db.notifications.update_many(
             {'userId': user_id, 'isRead': {'$ne': True}},
@@ -87,8 +103,7 @@ def mark_all_read():
 @notifications_bp.route('/<notification_id>', methods=['DELETE'])
 @login_required_api
 def delete_notification(notification_id):
-    """Hapus satu notifikasi milik user."""
-    user_id = session.get("user_id")
+    user_id = request.auth_user_id
     try:
         result = mongo.db.notifications.delete_one(
             {'_id': ObjectId(notification_id), 'userId': user_id}
@@ -103,31 +118,19 @@ def delete_notification(notification_id):
 @notifications_bp.route('', methods=['POST'])
 @login_required_api
 def create_notification():
-    """
-    Buat notifikasi baru.
-    Body JSON:
-    {
-        "userId": "target_user_id",
-        "title": "Judul Notifikasi",
-        "message": "Isi pesan",
-        "type": "alert" | "info" | "success" | "warning",
-        "link": "/url/tujuan" (opsional)
-    }
-    """
-    user_id = session.get("user_id")  # Sender ID
+    user_id = request.auth_user_id  # Sender ID
     data = request.get_json()
-    
+
     if not data:
         return jsonify({'success': False, 'message': 'Data tidak boleh kosong'}), 400
-    
+
     target_user_id = data.get('userId')
     if not target_user_id:
         return jsonify({'success': False, 'message': 'Parameter userId wajib diisi'}), 400
-    
-    # Dapatkan nama pengirim
-    sender = get_current_user()
+
+    sender = mongo.db.users.find_one({'_id': ObjectId(user_id)})
     sender_name = sender.get('nama') or sender.get('username', 'Sistem') if sender else 'Sistem'
-    
+
     try:
         notification = {
             'userId': target_user_id,
@@ -144,7 +147,7 @@ def create_notification():
         result = mongo.db.notifications.insert_one(notification)
         notification['_id'] = str(result.inserted_id)
         notification['createdAt'] = notification['createdAt'].isoformat()
-        
+
         return jsonify({'success': True, 'data': notification}), 201
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)}), 500
@@ -153,8 +156,7 @@ def create_notification():
 @notifications_bp.route('/unread-count', methods=['GET'])
 @login_required_api
 def get_unread_count():
-    """Ambil jumlah notifikasi yang belum dibaca untuk user saat ini."""
-    user_id = session.get("user_id")
+    user_id = request.auth_user_id
     try:
         count = mongo.db.notifications.count_documents({
             'userId': user_id,
