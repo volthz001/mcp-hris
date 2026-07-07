@@ -1,11 +1,11 @@
 from flask import Blueprint, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
-from db import mongo
+from extensions import mongo
 
 home_bp = Blueprint('home', __name__)
 
-@home_bp.route('/home/summary', methods=['GET'])
+@home_bp.route('/api/v1/home/summary', methods=['GET'])
 @jwt_required()
 def home_summary():
     user_id = get_jwt_identity()
@@ -32,6 +32,6 @@ def home_summary():
         'izin': izin,
         'alpha': alpha,
         'total_hari_kerja': hadir + izin + alpha,
-        'payslip_bulan': f"{payslip['month_label']}" if payslip else None,
+        'payslip_bulan': payslip.get('month_label') if payslip else None,
         'gaji_terakhir': payslip.get('take_home_pay') if payslip else None,
     })
