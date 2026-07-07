@@ -1,6 +1,6 @@
 # MCP HRIS — Requirements
 # Python 3.10+
-
+Flask-Cors==4.0.1
 # Core Framework
 Flask==3.0.3
 PyJWT==2.8.0
