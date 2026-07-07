@@ -7,7 +7,8 @@ from datetime import datetime
 from bson.objectid import ObjectId
 from extensions import mongo, get_current_user
 
-notifications_bp = Blueprint('notifications', __name__, url_prefix='/api/notifications')
+# routes/notifications.py
+notifications_bp = Blueprint('notifications', __name__, url_prefix='/api/v1/notifications')
 
 # ─── Decorator Auth (sama seperti di app.py) ──────────────────────────────
 def login_required_api(f):
