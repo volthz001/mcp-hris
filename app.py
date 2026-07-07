@@ -35,6 +35,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import logging
 from pythonjsonlogger import jsonlogger
 from api_mobile import api_bp
+from routes.home import home_bp
 
 # Setup logger
 logger = logging.getLogger()
@@ -49,6 +50,7 @@ logger.setLevel(logging.INFO)
 # 1. KONFIGURASI ENVIRONMENT (WAJIB ADA)
 # ══════════════════════════════════════════════════════════════════════════════
 app = Flask(__name__)
+app.register_blueprint(home_bp)
 csrf = CSRFProtect(app)
 csrf.exempt(api_bp)
 WTF_CSRF_ENABLED = True
