@@ -26,6 +26,7 @@ from flask import (
     Flask, render_template, request, redirect,
     url_for, session, flash, jsonify, make_response, Blueprint,send_file,get_flashed_messages
 )
+import time as _time 
 from pymongo import MongoClient
 import secrets
 from dotenv import load_dotenv
@@ -751,7 +752,7 @@ def login():
 
     return render_template("login.html")
 def generate_reset_token(email):
-    data = f"{email}:{int(time.time())}"
+    data = f"{email}:{int(_time.time())}"
     h = hmac.new(app.secret_key.encode('utf-8'), data.encode('utf-8'), hashlib.sha256)
     signature = h.hexdigest()
     token = base64.urlsafe_b64encode(f"{data}:{signature}".encode()).decode()
@@ -777,7 +778,7 @@ def verify_reset_token(token, max_age=3600):
             return None
 
         # Cek expiry
-        if int(time.time()) - int(timestamp) > max_age:
+        if int(_time.time()) - int(timestamp) > max_age:
             return None
 
         return email
