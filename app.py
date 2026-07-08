@@ -816,11 +816,12 @@ def verify_reset_token(token, max_age=3600):
             return None
         email, timestamp, signature = parts[0], parts[1], parts[2]
         data = f"{email}:{timestamp}"
-        expected = hmac.new(
+        h = hmac.new(
             app.secret_key.encode('utf-8'),
             data.encode('utf-8'),
             hashlib.sha256
-        ).hexdigest()
+        )
+        expected = h.hexdigest()
 
         # Timing-safe comparison — WAJIB, jangan pakai ==
         if not hmac.compare_digest(signature, expected):
@@ -1896,7 +1897,7 @@ def absensi_edit(id):
 @app.route("/absensi/history")
 @login_required
 def absensi_history():
-    role     = session.get("role", "").lower()
+    role     = session.get("role", "").upper()
     user_id  = session.get("user_id")
     area     = session.get("area", "")
 
@@ -1947,8 +1948,8 @@ def absensi_history():
     all_users = []
     if role in ["VP", "GML"]:
         all_users = list(mongo.db.users.find(
-        {}, {"_id": 1, "nama": 1, "username": 1, "jabatan": 1}
-    ))
+            {}, {"_id": 1, "nama": 1, "username": 1, "jabatan": 1}
+        ))
 
     # ── Ringkasan status ──────────────────────────────────────
     summary = {
