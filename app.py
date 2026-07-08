@@ -158,8 +158,10 @@ client = MongoClient(
     socketTimeoutMS=30000
 )
 db = client.get_database()
-
-CORS(app, resources={r"/api/*": {"origins": "*"}})
+_allowed_origins = os.environ.get("CORS_ORIGINS", "*")
+if _allowed_origins != "*":
+    _allowed_origins = [o.strip() for o in _allowed_origins.split(",")]
+CORS(app, resources={r"/api/*": {"origins": _allowed_origins}})
 # ══════════════════════════════════════════════════════════════════════════════
 # 4. KONFIGURASI SESSION (KEAMANAN COOKIE)
 # ══════════════════════════════════════════════════════════════════════════════
@@ -279,7 +281,7 @@ def health_check():
     # Cek MongoDB
     try:
         # Ping database
-        db.command('ping')
+        mongo.db.command('ping')
         status["mongodb"] = "connected"
     except Exception as e:
         status["status"] = "unhealthy"
@@ -1846,6 +1848,15 @@ def upload_excel():
             flash("File harus berformat .xlsx atau .xls", "danger")
             return redirect(url_for("upload_excel"))
 
+        # Validasi magic bytes (bukan hanya ekstensi)
+        file_bytes_check = file.read(8)
+        file.seek(0)  # reset pointer
+        XLSX_MAGIC = b'PK\x03\x04'          # ZIP-based (xlsx)
+        XLS_MAGIC  = b'\xd0\xcf\x11\xe0'    # OLE2 (xls)
+        if not (file_bytes_check.startswith(XLSX_MAGIC) or file_bytes_check.startswith(XLS_MAGIC)):
+            flash("File tidak valid. Pastikan file adalah Excel asli (.xlsx/.xls).", "danger")
+            return redirect(url_for("upload_excel"))
+
         try:
             df = pd.read_excel(file)
             data = df.to_dict(orient="records")
@@ -2211,7 +2222,7 @@ def get_kpi_data_for_month(month, year, wok):
 
     # ========== 2. METADATA UPLOAD ==========
     upload_info = mongo.db.kpi_uploads.find_one(filt, {"_id": 0})
-    #absensi_mb_count = upload_info.get("absensi_mb_count", 0) if upload_info else 0
+    absensi_mb_count = upload_info.get("absensi_mb_count", 0) if upload_info else 0
     kpi_tl_count = upload_info.get("kpi_tl_count", 0) if upload_info else 0
     orbit_count = upload_info.get("orbit_count", 0) if upload_info else 0
     upsell_count = upload_info.get("upsell_count", 0) if upload_info else 0
@@ -2553,6 +2564,7 @@ def kpi_upload_progress(task_id):
         return jsonify({"status": "not_found"}), 404
     return jsonify(data)
 
+# SESUDAH
 @app.route("/kpi/unlock", methods=["POST"])
 @login_required
 @role_required("VP", "GML")
@@ -2564,6 +2576,18 @@ def kpi_unlock():
     if not (month and year and wok):
         return jsonify({"success": False, "message": "Parameter tidak lengkap."})
     filt = {"month": month, "year": year, "wok": wok}
+
+    # Backup dulu sebelum hapus
+    backup_meta = {
+        "original_filter": filt,
+        "deleted_by":  session.get("user_id"),
+        "deleted_at":  datetime.now(),
+        "ps_count":    mongo.db.kpi_ps.count_documents(filt),
+        "djp_count":   mongo.db.kpi_djp.count_documents(filt),
+        "sf_count":    mongo.db.kpi_database.count_documents(filt),
+    }
+    mongo.db.kpi_unlock_log.insert_one(backup_meta)
+
     mongo.db.kpi_uploads.delete_one(filt)
     mongo.db.kpi_ps.delete_many(filt)
     mongo.db.kpi_djp.delete_many(filt)
@@ -3376,13 +3400,7 @@ def api_kpi_check():
         "sf": mongo.db.kpi_database.count_documents(filt),
         "sample_ps": list(mongo.db.kpi_ps.find(filt, {"_id":0, "nama_sf":1, "tgl_ps":1}).limit(2))
     })
-
 app.register_blueprint(payroll_bp)
-with app.app_context():
-    try:
-        setup_indexes()
-    except Exception as e:
-        print(f"[WARN] Index setup gagal: {e}")
 if __name__ == '__main__':
     with app.app_context():
         try: setup_indexes()
