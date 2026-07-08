@@ -140,7 +140,8 @@
         <div class="alert alert-{{ category }}">{{ message }}</div>
       {% endfor %}
     {% endwith %}
-    <form method="POST" action="{{ url_for('login') }}" {{ csrf_token() }}>
+    <form method="POST" action="{{ url_for('login') }}" >
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="form-group">
         <label>Username</label>
         <input type="text" name="username" class="form-control" placeholder="Masukkan username" required autofocus>
