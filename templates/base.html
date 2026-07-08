@@ -608,14 +608,31 @@
     .filter-group label { font-size: 10px; }
 
     /* Responsive */
-    @media (max-width: 768px) {
-      .sidebar { transform: translateX(-100%); }
-      .main-content { margin-left: 0; }
-      .stat-grid { grid-template-columns: 1fr 1fr; }
-      .grid-2, .grid-3 { grid-template-columns: 1fr; }
-      .page-body { padding: 20px; }
-      .topbar { padding: 12px 20px; }
-    }
+    /* SESUDAH */
+@media (max-width: 768px) {
+  .sidebar {
+    transform: translateX(-100%);
+    width: 260px;
+  }
+  .sidebar.open {
+    transform: translateX(0);
+    box-shadow: 4px 0 24px rgba(0,0,0,0.5);
+  }
+  .main-content {
+    margin-left: 0 !important;
+    width: 100%;
+  }
+  .hamburger-btn { display: inline-flex; }
+  .stat-grid { grid-template-columns: 1fr 1fr; }
+  .grid-2, .grid-3 { grid-template-columns: 1fr; }
+  .page-body { padding: 16px; }
+  .topbar { padding: 12px 16px; }
+}
+
+@media (max-width: 480px) {
+  .stat-grid { grid-template-columns: 1fr; }
+  .topbar-date { display: none; }
+}
     /* ── HAMBURGER BUTTON ── */
 .hamburger-btn {
   display: none;
@@ -838,86 +855,16 @@
 </div>
 
 <script>
-/* ── Clock ── */
 (function(){
-  function tick(){
-    const el = document.getElementById('clock');
-    if(!el) return;
-    el.textContent = new Date().toLocaleDateString('id-ID',{
-      weekday:'short', year:'numeric', month:'short',
-      day:'numeric', hour:'2-digit', minute:'2-digit'
-    });
-  }
-  tick(); setInterval(tick, 10000);
-})();
-
-/* ── Theme Switcher ── */
-(function(){
-  const html  = document.documentElement;
-  const btn   = document.getElementById('themeBtn');
-  const menu  = document.getElementById('themeMenu');
-  if(!btn || !menu) return;
-
-  const saved = localStorage.getItem('mcp-theme') || 'amber';
-
-  function apply(t){
-    html.setAttribute('data-theme', t);
-    localStorage.setItem('mcp-theme', t);
-    menu.querySelectorAll('.theme-item').forEach(i =>
-      i.classList.toggle('active', i.dataset.theme === t)
-    );
-  }
-  apply(saved);
-
-  btn.addEventListener('click', e => { e.stopPropagation(); menu.classList.toggle('open'); });
-  menu.querySelectorAll('.theme-item').forEach(item => {
-    item.addEventListener('click', () => { apply(item.dataset.theme); menu.classList.remove('open'); });
-  });
-  document.addEventListener('click', e => {
-    if(!e.target.closest('.theme-wrap')) menu.classList.remove('open');
-  });
-})();
-
-/* ── Unread Badge Polling ── */
-{% if session.user_id %}
-(function(){
-  function setBadge(el, n){
-    if(!el) return;
-    if(n > 0){ el.textContent = n > 99 ? '99+' : n; el.classList.add('show'); }
-    else      { el.classList.remove('show'); }
-  }
-
-  function poll(){
-    fetch('/api/unread-counts')
-      .then(r => r.ok ? r.json() : null)
-      .then(d => {
-        if(!d) return;
-        const m = d.messages || 0, n = d.notifications || 0;
-        /* sidebar */
-        setBadge(document.getElementById('sb-msg-badge'),   m);
-        setBadge(document.getElementById('sb-notif-badge'), n);
-        /* topbar */
-        setBadge(document.getElementById('tb-msg'),         m);
-        setBadge(document.getElementById('tb-notif'),       n);
-        /* title */
-        const total = m + n;
-        document.title = (total > 0 ? `(${total}) ` : '') +
-                         document.title.replace(/^\(\d+\) /, '');
-      })
-      .catch(() => {});
-  }
-
-  poll(); setInterval(poll, 15000);
-})();
-{% endif %}
-/* ── SIDEBAR SWIPE & TOGGLE ── */
-(function(){
-  const sidebar  = document.querySelector('.sidebar');
-  const overlay  = document.getElementById('sidebarOverlay');
+  const sidebar   = document.querySelector('.sidebar');
+  const overlay   = document.getElementById('sidebarOverlay');
   const toggleBtn = document.getElementById('sidebarToggle');
   if(!sidebar) return;
 
+  function isMobile(){ return window.innerWidth <= 768; }
+
   function openSidebar(){
+    if(!isMobile()) return;
     sidebar.classList.add('open');
     overlay.classList.add('active');
     document.body.style.overflow = 'hidden';
@@ -928,24 +875,27 @@
     document.body.style.overflow = '';
   }
 
+  // Reset saat resize ke desktop
+  window.addEventListener('resize', () => {
+    if(!isMobile()) closeSidebar();
+  });
+
   if(toggleBtn) toggleBtn.addEventListener('click', () => {
     sidebar.classList.contains('open') ? closeSidebar() : openSidebar();
   });
 
-  overlay.addEventListener('click', closeSidebar);
+  if(overlay) overlay.addEventListener('click', closeSidebar);
 
-  // Tutup sidebar saat klik nav item (mobile UX)
   sidebar.querySelectorAll('.nav-item a').forEach(a => {
     a.addEventListener('click', () => {
-      if(window.innerWidth <= 768) closeSidebar();
+      if(isMobile()) closeSidebar();
     });
   });
 
-  // ── SWIPE GESTURE ──
-  let touchStartX = 0;
-  let touchStartY = 0;
-  const SWIPE_THRESHOLD = 50;   // px minimum untuk trigger
-  const EDGE_ZONE = 30;         // px dari kiri untuk open gesture
+  // Swipe gesture
+  let touchStartX = 0, touchStartY = 0;
+  const SWIPE_THRESHOLD = 50;
+  const EDGE_ZONE = 30;
 
   document.addEventListener('touchstart', e => {
     touchStartX = e.touches[0].clientX;
@@ -955,27 +905,20 @@
   document.addEventListener('touchend', e => {
     const dx = e.changedTouches[0].clientX - touchStartX;
     const dy = e.changedTouches[0].clientY - touchStartY;
-
-    // Pastikan gesture lebih horizontal dari vertikal
     if(Math.abs(dx) < Math.abs(dy)) return;
     if(Math.abs(dx) < SWIPE_THRESHOLD) return;
-
-    if(dx > 0 && touchStartX < EDGE_ZONE) {
-      // Swipe kanan dari tepi kiri → buka sidebar
-      openSidebar();
-    } else if(dx < 0 && sidebar.classList.contains('open')) {
-      // Swipe kiri saat sidebar terbuka → tutup
-      closeSidebar();
-    }
+    if(dx > 0 && touchStartX < EDGE_ZONE) openSidebar();
+    else if(dx < 0 && sidebar.classList.contains('open')) closeSidebar();
   }, { passive: true });
 
-  // Tutup dengan Escape
   document.addEventListener('keydown', e => {
     if(e.key === 'Escape') closeSidebar();
   });
+
+  // Pastikan state bersih saat halaman load
+  if(!isMobile()) {
+    closeSidebar();
+    document.body.style.overflow = '';
+  }
 })();
 </script>
-  
-{% block extra_script %}{% endblock %}
-</body>
-</html>
