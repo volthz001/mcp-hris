@@ -1946,7 +1946,7 @@ def absensi_history():
     # ── Data dropdown user (hanya untuk vp/admin/gml) ─────────
     all_users = []
     if role in ["VP", "GML"]:
-    all_users = list(mongo.db.users.find(
+        all_users = list(mongo.db.users.find(
         {}, {"_id": 1, "nama": 1, "username": 1, "jabatan": 1}
     ))
 
