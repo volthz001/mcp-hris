@@ -458,7 +458,8 @@ def mawi():
 
         # 1. Koneksi DB
         result["status"] = "ok"
-        result["db"] = db.name if db else "tidak terhubung"
+        result["db"] = db.name if db is not None else "tidak terhubung"
+
 
         # 2. Jumlah dokumen per collection
         result["counts"] = {
