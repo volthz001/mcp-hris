@@ -888,6 +888,8 @@ def register():
                 return jsonify({"success": False, "message": "Password minimal 8 karakter."}), 400
             flash("Password minimal 8 karakter.", "danger")
             return render_template("register.html")
+        if not nik.isdigit() or len(nik) != 16:
+            return jsonify({"success": False, "message": "NIK harus 16 digit angka."}), 400
 
         # Cek username duplikat
         if mongo.db.users.find_one({"username": username}):
