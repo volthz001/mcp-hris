@@ -40,6 +40,7 @@ from routes.home import home_bp
 from routes.notifications import notifications_bp
 from routes.messages import messages_bp
 from extensions import mongo, get_current_user
+from extensions import mongo as _mongo_ext
 
 # Setup logger
 logger = logging.getLogger()
@@ -86,8 +87,6 @@ MONGO_URI = os.environ.get("MONGO_URI")
 if not MONGO_URI:
     raise ValueError("MONGO_URI harus diset di environment variable!")
 
-app.config["MONGO_URI"] = MONGO_URI
-
 limiter = Limiter(
     get_remote_address,
     app=app,
@@ -131,7 +130,6 @@ if os.environ.get("SESSION_COOKIE_SECURE", "False").lower() == "true":
 # ══════════════════════════════════════════════════════════════════════════════
 # 5. INISIALISASI MONGODB (SETELAH URI DI SET)
 # ══════════════════════════════════════════════════════════════════════════════
-mongo = PyMongo(app)    
 
 # ══════════════════════════════════════════════════════════════════════════════
 # KONSTANTA
@@ -264,15 +262,14 @@ DEFAULT_ROLES_MANAGE = ['VP', 'GML']
 DEFAULT_ROLES_VIEW   = ['VP', 'GML', 'MANAGER_WOK', 'TS']
 
 def _payroll_settings_doc():
-    from app import mongo
-    doc = mongo.db.payroll_settings.find_one({"_id": "default"})
+    doc = _mongo_ext.db.payroll_settings.find_one({"_id": "default"})
     if not doc:
         doc = {
             "_id": "default",
             "roles_manage": DEFAULT_ROLES_MANAGE,
             "roles_view": DEFAULT_ROLES_VIEW,
         }
-        mongo.db.payroll_settings.insert_one(doc)
+        _mongo_ext.db.payroll_settings.insert_one(doc)
     return doc
 
 def get_roles_manage():
@@ -287,14 +284,7 @@ def get_roles_view():
 # ---------------------------------------------------------------------------
 
 def _get_mongo():
-    """Ambil instance mongo dari app context."""
-    from flask import current_app
-    from flask_pymongo import PyMongo
-    # mongo sudah diinit di app.py, akses via current_app.extensions
-    # Cara paling aman: import langsung dari app
-    import app as main_app
-    return main_app.mongo
-
+    return _mongo_ext
 def _current_role():
     return session.get('role', '')
 
@@ -765,11 +755,11 @@ def login():
             flash("Akun Anda sedang dikunci. Hubungi administrator.", "danger")
             return render_template("login.html")
         logger.info({
-        "event": "user_login",
-        "user_id": user_id,
-        "ip": request.remote_addr,
-        "success": True
-        })
+    "event": "user_login",
+    "user_id": session.get("user_id", "unknown"),  # ← ambil dari session
+    "ip": request.remote_addr,
+    "success": True
+})
         return redirect(url_for("dashboard"))
 
     # Hapus semua flash message yang tersisa (hanya untuk method GET)
@@ -813,11 +803,8 @@ def login():
     return render_template("login.html")
 def generate_reset_token(email):
     data = f"{email}:{int(time.time())}"
-    signature = hmac.new(
-        app.secret_key.encode('utf-8'),
-        data.encode('utf-8'),
-        hashlib.sha256
-    ).hexdigest()
+    h = hmac.new(app.secret_key.encode('utf-8'), data.encode('utf-8'), hashlib.sha256)
+    signature = h.hexdigest()
     token = base64.urlsafe_b64encode(f"{data}:{signature}".encode()).decode()
     return token
 
@@ -889,7 +876,10 @@ def register():
             flash("Password minimal 8 karakter.", "danger")
             return render_template("register.html")
         if not nik.isdigit() or len(nik) != 16:
-            return jsonify({"success": False, "message": "NIK harus 16 digit angka."}), 400
+            if request.is_json:
+                return jsonify({"success": False, "message": "NIK harus 16 digit angka."}), 400
+            flash("NIK harus 16 digit angka.", "danger")
+            return render_template("register.html")
 
         # Cek username duplikat
         if mongo.db.users.find_one({"username": username}):
@@ -1494,7 +1484,8 @@ def kasbon_approve(kasbon_id):
         {"_id": ObjectId(kasbon_id)},
         {"$set": {
             "status":      status,
-            "approved_by": session.get("name") or session.get("username", "?"),
+            "approved_by_id": session.get("user_id"), 
+            "approved_by_name": session.get("name") or session.get("username", "?"),
             "approved_at": datetime.now(),
         }}
     )
@@ -1920,17 +1911,13 @@ def absensi_history():
     # ── Build query berdasarkan role ──────────────────────────
     query = {}
 
-    if role in ["vp", "admin", "gml"]:
-        # Lihat semua — filter opsional per user
+    if role in ["VP", "GML"]:
         if filter_user:
             query["user_id"] = filter_user
-
-    elif role in ["manager_wok", "manager"]:
-        # Lihat semua di area mereka
+    elif role in ["MANAGER_WOK"]:
         query["area"] = area
-
     else:
-        # TL, TS, TC — hanya milik sendiri
+        # TL, TS, TC, SF — hanya milik sendiri
         query["user_id"] = user_id
 
     # Filter tanggal
@@ -1958,10 +1945,10 @@ def absensi_history():
 
     # ── Data dropdown user (hanya untuk vp/admin/gml) ─────────
     all_users = []
-    if role in ["vp", "admin", "gml"]:
-        all_users = list(mongo.db.users.find(
-            {}, {"_id": 1, "nama": 1, "username": 1, "jabatan": 1}
-        ))
+    if role in ["VP", "GML"]:
+    all_users = list(mongo.db.users.find(
+        {}, {"_id": 1, "nama": 1, "username": 1, "jabatan": 1}
+    ))
 
     # ── Ringkasan status ──────────────────────────────────────
     summary = {
@@ -1971,7 +1958,7 @@ def absensi_history():
         "sakit" : mongo.db.absensi.count_documents({**query, "status": "sakit"}),
     }
 
-    is_admin_view = role in ["vp", "admin", "gml", "manager_wok", "manager"]
+    is_admin_view = role in ["VP", "GML", "MANAGER_WOK"]
 
     return render_template("absensi_saya.html",
         data         = data,
@@ -2513,12 +2500,6 @@ def kpi():
         user = get_current_user(),
         **ctx,
     )
-@app.route('/debug-templates')
-def debug_templates():
-    import os
-    folder = os.path.join(app.root_path, 'templates')
-    files = os.listdir(folder)
-    return str(files)
 @app.route("/kpi/upload", methods=["GET", "POST"])
 @login_required
 @csrf.exempt
