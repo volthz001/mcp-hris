@@ -14,7 +14,7 @@ from flask_cors import CORS
 from flask_limiter.util import get_remote_address
 import os, io, calendar, json
 import hashlib
-import hmac,base6
+import hmac,base64
 from functools import wraps
 import threading
 import pytz
