@@ -436,68 +436,6 @@ def _build_slip(karyawan: dict, periode: str, period_id, mongo) -> dict:
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
-# ─── MAWI TEST ENDPOINT ────────────────────────────────────────────────
-@app.route("/mawi", methods=["GET"])
-def mawi():
-    """
-    Endpoint uji coba — return JSON summary semua collection utama.
-    HAPUS atau PROTEKSI dengan @login_required sebelum go public.
-    """
-    try:
-        result = {}
-
-        # 1. Koneksi DB
-        result["status"] = "ok"
-        result["db"] = db.name if db is not None else "tidak terhubung"
-
-
-        # 2. Jumlah dokumen per collection
-        result["counts"] = {
-            "users"     : db.users.count_documents({}),
-            "kasbon"    : db.kasbon.count_documents({}),
-            "absensi"   : db.absensi.count_documents({}),
-            "kpi"       : db.kpi.count_documents({}),
-            "messages"  : db.messages.count_documents({}) if "messages" in db.list_collection_names() else 0,
-        }
-
-        # 3. Sample 3 user (tanpa password)
-        users_sample = list(db.users.find(
-            {},
-            {"password": 0, "_id": 0}
-        ).limit(3))
-        result["users_sample"] = users_sample
-
-        # 4. Sample 3 kasbon terbaru
-        kasbon_sample = list(db.kasbon.find(
-            {},
-            {"_id": 0}
-        ).sort("tanggal", -1).limit(3))
-        result["kasbon_sample"] = kasbon_sample
-
-        # 5. Sample 3 absensi terbaru
-        absensi_sample = list(db.absensi.find(
-            {},
-            {"_id": 0}
-        ).sort("tanggal", -1).limit(3))
-        result["absensi_sample"] = absensi_sample
-
-        # 6. Config app (non-sensitive)
-        result["config"] = {
-            "debug"         : app.debug,
-            "env"           : app.env if hasattr(app, "env") else "unknown",
-            "csrf_enabled"  : True,
-        }
-
-        return jsonify(result), 200
-
-    except Exception as e:
-        return jsonify({
-            "status" : "error",
-            "message": str(e)
-        }), 500
-# ─── END MAWI ──────────────────────────────────────────────────────────
-
-
 
 @payroll_bp.route('/')
 @_login_required
