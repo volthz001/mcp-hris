@@ -3082,14 +3082,15 @@ def update_progress(task_id, percent, message):
         "updated_at": datetime.now().isoformat()
     }
 def process_kpi_upload_background(task_id, file_bytes, filename, month, year, wok, uploader_name, uploader_id):
-    with app.app_context():  # ← tambahkan ini
+    with app.app_context():
         try:
             absensi_mb_count = 0
             kpi_tl_count = 0
             orbit_count = 0
             upsell_count = 0
             briefing_mb_count = 0
-        # 1. Baca file
+
+            # 1. Baca file
             update_progress(task_id, 5, "Membaca file Excel...")
             xls = pd.ExcelFile(io.BytesIO(file_bytes))
             sheet_names = xls.sheet_names
@@ -3102,25 +3103,23 @@ def process_kpi_upload_background(task_id, file_bytes, filename, month, year, wo
                 mongo.db[coll].delete_many(filt)
 
             ps_records, djp_records, db_records = [], [], []
+
             # ===================== SHEET ABSENSI MB (BRIEFING DARI KOLOM AL) =====================
             briefing_mb_count = 0
             if "Absensi MB" in sheet_names:
                 df_absen = pd.read_excel(io.BytesIO(file_bytes), sheet_name="Absensi MB")
-            # Cari kolom yang bernama "AL" (case-insensitive)
                 col_al = None
                 for col in df_absen.columns:
                     if str(col).strip().upper() == "AL":
                         col_al = col
                         break
                 if col_al is not None:
-                # Hitung jumlah baris yang kolom AL-nya tidak kosong (atau berisi nilai tertentu)
-                # Misal: anggap briefing jika kolom AL tidak kosong
                     briefing_mb_count = df_absen[col_al].notna().sum()
                     print(f"[DEBUG] Briefing dari Absensi MB (kolom AL): {briefing_mb_count}")
                 else:
                     print("[WARN] Kolom 'AL' tidak ditemukan di sheet Absensi MB")
 
-                # ===================== SHEET KPI TL (Shift TL) =====================
+            # ===================== SHEET KPI TL =====================
             kpi_tl_count = 0
             if "KPI TL" in sheet_names:
                 df = pd.read_excel(io.BytesIO(file_bytes), sheet_name="KPI TL")
@@ -3138,7 +3137,7 @@ def process_kpi_upload_background(task_id, file_bytes, filename, month, year, wo
             else:
                 print("[WARN] Sheet 'Orbit' tidak ditemukan!")
 
-        # ===================== SHEET UPSELL =====================
+            # ===================== SHEET UPSELL =====================
             upsell_count = 0
             if "Upsell" in sheet_names:
                 df = pd.read_excel(io.BytesIO(file_bytes), sheet_name="Upsell")
@@ -3168,24 +3167,24 @@ def process_kpi_upload_background(task_id, file_bytes, filename, month, year, wo
 
                     ps_records.append({
                         **filt,
-                        "nama_sf":   str(row.get('Nama SF', '')),
-                        "kode_sf":   str(row.get('Kode SF', '')),
-                        "nama_tl":   str(row.get('Nama TL', '')),
-                        "kode_tl":   str(row.get('Kode TL', '')),
-                        "paket":     str(row.get('Paket', '')),
-                        "kategori":  str(row.get('Kategori', '')),
-                        "arpu":      float(row.get('ARPU', 0) or 0),
-                        "tgl_ps":    int(row.get('Tgl PS', 0) or 0),
+                        "nama_sf":    str(row.get('Nama SF', '')),
+                        "kode_sf":    str(row.get('Kode SF', '')),
+                        "nama_tl":    str(row.get('Nama TL', '')),
+                        "kode_tl":    str(row.get('Kode TL', '')),
+                        "paket":      str(row.get('Paket', '')),
+                        "kategori":   str(row.get('Kategori', '')),
+                        "arpu":       float(row.get('ARPU', 0) or 0),
+                        "tgl_ps":     int(row.get('Tgl PS', 0) or 0),
                         "tanggal_ps": str(row.get('Tanggal PS', '')),
                         "uploaded_by": uploader_name,
-                        "upload_at": datetime.now().strftime("%d %b %Y %H:%M WIB"),
+                        "upload_at":  datetime.now().strftime("%d %b %Y %H:%M WIB"),
                     })
                 update_progress(task_id, 45, f"Selesai PS ({len(ps_records)} record)")
                 print(f"[DEBUG] PS: {len(ps_records)} record")
             else:
                 print("[WARN] Sheet PS tidak ditemukan!")
 
-        # ===================== SHEET DJP =====================
+            # ===================== SHEET DJP =====================
             if "DJP Approve" in sheet_names:
                 update_progress(task_id, 50, "Membaca sheet DJP Approve...")
                 df = pd.read_excel(io.BytesIO(file_bytes), sheet_name="DJP Approve")
@@ -3212,20 +3211,21 @@ def process_kpi_upload_background(task_id, file_bytes, filename, month, year, wo
                         "status":          str(row.get('STATUS', '')),
                         "tgl":             int(row.get('Tgl', 0) or 0),
                         "uploaded_by": uploader_name,
-                        "upload_at": datetime.now().strftime("%d %b %Y %H:%M WIB"),
+                        "upload_at":   datetime.now().strftime("%d %b %Y %H:%M WIB"),
                     })
                 update_progress(task_id, 65, f"Selesai DJP ({len(djp_records)} record)")
                 print(f"[DEBUG] DJP: {len(djp_records)} record")
             else:
                 print("[WARN] Sheet DJP Approve tidak ditemukan!")
+
+            # Re-hitung KPI TL dengan data valid (overwrite count awal)
             if "KPI TL" in sheet_names:
                 df = pd.read_excel(io.BytesIO(file_bytes), sheet_name="KPI TL", header=0)
-                # Hapus baris yang semua kolomnya kosong
                 df = df.dropna(how='all')
                 kpi_tl_count = len(df)
                 print(f"[DEBUG] KPI TL: jumlah baris data valid = {kpi_tl_count}")
 
-        # ===================== SHEET DATABASE =====================
+            # ===================== SHEET DATABASE =====================
             if "Database" in sheet_names:
                 update_progress(task_id, 70, "Membaca sheet Database...")
                 df = pd.read_excel(io.BytesIO(file_bytes), sheet_name="Database")
@@ -3242,7 +3242,7 @@ def process_kpi_upload_background(task_id, file_bytes, filename, month, year, wo
                     no = row.get('No')
                     sales_force = row.get('Sales Force')
                     if pd.isna(no) or pd.isna(sales_force):
-                        continue    
+                        continue
 
                     db_records.append({
                         **filt,
@@ -3252,7 +3252,7 @@ def process_kpi_upload_background(task_id, file_bytes, filename, month, year, wo
                         "status_sf": str(row.get('Status SF', 'ACTIVE')),
                         "status_tl": str(row.get('Status TL', 'ACTIVE')),
                         "uploaded_by": uploader_name,
-                        "upload_at": datetime.now().strftime("%d %b %Y %H:%M WIB"),
+                        "upload_at":   datetime.now().strftime("%d %b %Y %H:%M WIB"),
                     })
                 update_progress(task_id, 80, f"Selesai SF ({len(db_records)} record)")
                 print(f"[DEBUG] Database: {len(db_records)} record")
@@ -3262,7 +3262,8 @@ def process_kpi_upload_background(task_id, file_bytes, filename, month, year, wo
             # Validasi
             if not ps_records and not djp_records and not db_records:
                 raise ValueError("Tidak ada data yang valid di file Excel. Periksa nama sheet, kolom, dan isi data.")
-                    # ========== SIMPAN SEMUA SHEET (RAW) UNTUK VIEWER ==========
+
+            # ========== SIMPAN SEMUA SHEET (RAW) UNTUK VIEWER ==========
             update_progress(task_id, 82, "Menyimpan raw data semua sheet...")
             for sname in sheet_names:
                 df_raw = pd.read_excel(io.BytesIO(file_bytes), sheet_name=sname, header=None)
@@ -3272,8 +3273,8 @@ def process_kpi_upload_background(task_id, file_bytes, filename, month, year, wo
                     {"month": month, "year": year, "wok": wok, "sheet_name": sname},
                     {"$set": {
                         "sheet_name": sname,
-                        "headers": headers,
-                        "data": data_raw,
+                        "headers":    headers,
+                        "data":       data_raw,
                         "total_rows": len(data_raw),
                         "total_cols": len(headers)
                     }},
@@ -3298,43 +3299,42 @@ def process_kpi_upload_background(task_id, file_bytes, filename, month, year, wo
                 filt,
                 {"$set": {
                     **filt,
-                    "filename": filename,
-                    "uploaded_by": uploader_name,
-                    "uploaded_by_id": uploader_id,
-                    "upload_at": datetime.now().strftime("%d %b %Y %H:%M WIB"),
-                    "upload_at_dt": datetime.now(),
-                    "ps_count": len(ps_records),
-                    "djp_count": len(djp_records),
-                    "sf_count": len(db_records),
-                    # METADATA BARU
-                    "absensi_mb_count": absensi_mb_count,
+                    "filename":          filename,
+                    "uploaded_by":       uploader_name,
+                    "uploaded_by_id":    uploader_id,
+                    "upload_at":         datetime.now().strftime("%d %b %Y %H:%M WIB"),
+                    "upload_at_dt":      datetime.now(),
+                    "ps_count":          len(ps_records),
+                    "djp_count":         len(djp_records),
+                    "sf_count":          len(db_records),
+                    "absensi_mb_count":  absensi_mb_count,
                     "briefing_mb_count": briefing_mb_count,
-                    "kpi_tl_count": kpi_tl_count,
-                    "orbit_count": orbit_count,
-                    "upsell_count": upsell_count,
+                    "kpi_tl_count":      kpi_tl_count,
+                    "orbit_count":       orbit_count,
+                    "upsell_count":      upsell_count,
                 }},
                 upsert=True
             )
 
-        # Selesai
+            # Selesai
             upload_progress[task_id] = {
-                "status": "completed",
+                "status":  "completed",
                 "percent": 100,
                 "message": "Upload dan pemrosesan berhasil!",
                 "result": {
-                    "ps_count": len(ps_records),
+                    "ps_count":  len(ps_records),
                     "djp_count": len(djp_records),
-                    "sf_count": len(db_records),
-                    "sheets": sheet_names,
+                    "sf_count":  len(db_records),
+                    "sheets":    sheet_names,
                 }
             }
             print("[DEBUG] Proses upload selesai.")
 
-        except Exception as e: # ← level 2, match dengan try ✓
+        except Exception as e:  # ← sejajar dengan try, di dalam with
             import traceback
             traceback.print_exc()
             upload_progress[task_id] = {
-                "status": "error",
+                "status":  "error",
                 "percent": 0,
                 "message": str(e)
             }
