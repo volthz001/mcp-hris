@@ -80,20 +80,26 @@ if not SECRET_KEY:
 # ══════════════════════════════════════════════════════════════════════════════
 # 3. MONGODB URI (WAJIB DARI ENVIRONMENT, TIDAK ADA FALLBACK)
 # ══════════════════════════════════════════════════════════════════════════════
-app.secret_key = SECRET_KEY
-
-# ✅ Set MONGO_URI ke app.config DULU sebelum init_app
 MONGO_URI = os.environ.get("MONGO_URI")
+
+# ✅ 1. Validasi DULU sebelum apapun
+if not MONGO_URI:
+    raise ValueError("MONGO_URI harus diset di environment variable!")
+
+# ✅ 2. Set ke app.config SEBELUM init_app
+app.config["MONGO_URI"] = MONGO_URI
+
+# ✅ 3. Baru init limiter (tidak butuh mongo)
 limiter = Limiter(
     get_remote_address,
     app=app,
     default_limits=["200 per day", "50 per hour"]
 )
 
-# ✅ Baru panggil init_app setelah config siap
-mongo.init_app(app)   # pakai yang dari extensions.py
+# ✅ 4. Baru init mongo (sekarang app.config["MONGO_URI"] sudah ada)
+mongo.init_app(app)
 
-# ✅ MongoClient untuk connection pool langsung
+# ✅ 5. Baru buat MongoClient untuk connection pool langsung
 client = MongoClient(
     MONGO_URI,
     maxPoolSize=50,
@@ -103,10 +109,7 @@ client = MongoClient(
     socketTimeoutMS=30000
 )
 db = client.get_database()
-if not MONGO_URI:
-    raise ValueError("MONGO_URI harus diset di environment variable!")
 
-app.config["MONGO_URI"] = MONGO_URI
 CORS(app, resources={r"/api/*": {"origins": "*"}})
 # ══════════════════════════════════════════════════════════════════════════════
 # 4. KONFIGURASI SESSION (KEAMANAN COOKIE)
