@@ -84,9 +84,6 @@ app.secret_key = SECRET_KEY
 
 # ✅ Set MONGO_URI ke app.config DULU sebelum init_app
 MONGO_URI = os.environ.get("MONGO_URI")
-if not MONGO_URI:
-    raise ValueError("MONGO_URI harus diset di environment variable!")
-
 limiter = Limiter(
     get_remote_address,
     app=app,
@@ -775,6 +772,7 @@ def verify_reset_token(token, max_age=3600):
         return None
 @app.route("/register", methods=["GET", "POST"])
 @csrf.exempt
+@limiter.limit("3 per hour")
 def register():
     """
     Register mandiri: karyawan daftar sendiri.
@@ -2113,11 +2111,12 @@ def user_activate(user_id):
         mongo.db.users.update_one(
             {"_id": ObjectId(user_id)},
             {"$set": {
-                "status":     "active",
-                "role":       new_role,
-                "jabatan":    new_role,
-                "activated_by": session.get("name") or session.get("username", "?"),
-                "activated_at": datetime.now()
+                "status":            "active",
+                "role":              new_role,
+                "jabatan":           new_role,
+                "activated_by_id":   session.get("user_id"),
+                "activated_by_name": session.get("name") or session.get("username", "?"),
+                "activated_at":      datetime.now()
             }}
         )
         return jsonify({"success": True, "message": f"Akun {user.get('nama')} berhasil diaktivasi sebagai {new_role}."})
@@ -2869,10 +2868,9 @@ def report_harian():
     # ── Hitung ringkasan absensi ──────────────────────────
     abs_sum = {
         'hadir':  sum(1 for a in absensi_hari if a.get('status') == 'hadir'),
-        'izin':   sum(1 for a in absensi_hari if a.get('status') == 'izin_kegiatan'),
-        'sakit':  sum(1 for a in absensi_hari if a.get('status') == 'izin_sakit'),
-        'alpha':  sum(1 for a in absensi_hari if a.get('status') not in
-                      ['hadir', 'izin_kegiatan', 'izin_sakit']),
+        'izin':   sum(1 for a in absensi_hari if a.get('status') == 'izin'),
+        'sakit':  sum(1 for a in absensi_hari if a.get('status') == 'sakit'),
+    '    alpha':  sum(1 for a in absensi_hari if a.get('status') not in ['hadir', 'izin', 'sakit']),
     }
 
     # ── Hitung ringkasan kasbon ───────────────────────────
@@ -3084,255 +3082,253 @@ def update_progress(task_id, percent, message):
         "updated_at": datetime.now().isoformat()
     }
 def process_kpi_upload_background(task_id, file_bytes, filename, month, year, wok, uploader_name, uploader_id):
-    """Proses file Excel KPI dengan update progress real-time (menggunakan iterrows)."""
-
-    try:
-        # ========== DEKLARASI COUNTER ==========
-        absensi_mb_count = 0
-        kpi_tl_count = 0
-        orbit_count = 0
-        upsell_count = 0
-        briefing_mb_count = 0 
+    with app.app_context():  # ← tambahkan ini
+        try:
+            absensi_mb_count = 0
+            kpi_tl_count = 0
+            orbit_count = 0
+            upsell_count = 0
+            briefing_mb_count = 0
         # 1. Baca file
-        update_progress(task_id, 5, "Membaca file Excel...")
-        xls = pd.ExcelFile(io.BytesIO(file_bytes))
-        sheet_names = xls.sheet_names
-        print(f"[DEBUG] Sheet ditemukan: {sheet_names}")
+            update_progress(task_id, 5, "Membaca file Excel...")
+            xls = pd.ExcelFile(io.BytesIO(file_bytes))
+            sheet_names = xls.sheet_names
+            print(f"[DEBUG] Sheet ditemukan: {sheet_names}")
 
-        # 2. Hapus data lama
-        update_progress(task_id, 10, "Menghapus data lama...")
-        filt = {"month": month, "year": year, "wok": wok}
-        for coll in ("kpi_ps", "kpi_djp", "kpi_database", "kpi_uploads"):
-            mongo.db[coll].delete_many(filt)
+            # 2. Hapus data lama
+            update_progress(task_id, 10, "Menghapus data lama...")
+            filt = {"month": month, "year": year, "wok": wok}
+            for coll in ("kpi_ps", "kpi_djp", "kpi_database", "kpi_uploads"):
+                mongo.db[coll].delete_many(filt)
 
-        ps_records, djp_records, db_records = [], [], []
+            ps_records, djp_records, db_records = [], [], []
             # ===================== SHEET ABSENSI MB (BRIEFING DARI KOLOM AL) =====================
-        briefing_mb_count = 0
-        if "Absensi MB" in sheet_names:
-            df_absen = pd.read_excel(io.BytesIO(file_bytes), sheet_name="Absensi MB")
+            briefing_mb_count = 0
+            if "Absensi MB" in sheet_names:
+                df_absen = pd.read_excel(io.BytesIO(file_bytes), sheet_name="Absensi MB")
             # Cari kolom yang bernama "AL" (case-insensitive)
-            col_al = None
-            for col in df_absen.columns:
-                if str(col).strip().upper() == "AL":
-                    col_al = col
-                    break
-            if col_al is not None:
+                col_al = None
+                for col in df_absen.columns:
+                    if str(col).strip().upper() == "AL":
+                        col_al = col
+                        break
+                if col_al is not None:
                 # Hitung jumlah baris yang kolom AL-nya tidak kosong (atau berisi nilai tertentu)
                 # Misal: anggap briefing jika kolom AL tidak kosong
-                briefing_mb_count = df_absen[col_al].notna().sum()
-                print(f"[DEBUG] Briefing dari Absensi MB (kolom AL): {briefing_mb_count}")
+                    briefing_mb_count = df_absen[col_al].notna().sum()
+                    print(f"[DEBUG] Briefing dari Absensi MB (kolom AL): {briefing_mb_count}")
+                else:
+                    print("[WARN] Kolom 'AL' tidak ditemukan di sheet Absensi MB")
+
+                # ===================== SHEET KPI TL (Shift TL) =====================
+            kpi_tl_count = 0
+            if "KPI TL" in sheet_names:
+                df = pd.read_excel(io.BytesIO(file_bytes), sheet_name="KPI TL")
+                kpi_tl_count = len(df) - 1 if len(df) > 0 else 0
+                print(f"[DEBUG] KPI TL: jumlah baris data = {kpi_tl_count}")
             else:
-                print("[WARN] Kolom 'AL' tidak ditemukan di sheet Absensi MB")
+                print("[WARN] Sheet 'KPI TL' tidak ditemukan!")
 
-        # ===================== SHEET KPI TL (Shift TL) =====================
-        kpi_tl_count = 1
-        if "KPI TL" in sheet_names:
-            df = pd.read_excel(io.BytesIO(file_bytes), sheet_name="KPI TL")
-            kpi_tl_count = len(df) - 1 if len(df) > 0 else 0
-            print(f"[DEBUG] KPI TL: jumlah baris data = {kpi_tl_count}")
-        else:
-            print("[WARN] Sheet 'KPI TL' tidak ditemukan!")
-
-        # ===================== SHEET ORBIT =====================
-        orbit_count = 1
-        if "Orbit" in sheet_names:
-            df = pd.read_excel(io.BytesIO(file_bytes), sheet_name="Orbit")
-            orbit_count = len(df) - 1 if len(df) > 0 else 0
-            print(f"[DEBUG] Orbit: jumlah baris data = {orbit_count}")
-        else:
-            print("[WARN] Sheet 'Orbit' tidak ditemukan!")
+            # ===================== SHEET ORBIT =====================
+            orbit_count = 0
+            if "Orbit" in sheet_names:
+                df = pd.read_excel(io.BytesIO(file_bytes), sheet_name="Orbit")
+                orbit_count = len(df) - 1 if len(df) > 0 else 0
+                print(f"[DEBUG] Orbit: jumlah baris data = {orbit_count}")
+            else:
+                print("[WARN] Sheet 'Orbit' tidak ditemukan!")
 
         # ===================== SHEET UPSELL =====================
-        upsell_count = 1
-        if "Upsell" in sheet_names:
-            df = pd.read_excel(io.BytesIO(file_bytes), sheet_name="Upsell")
-            upsell_count = len(df) - 1 if len(df) > 0 else 0
-            print(f"[DEBUG] Upsell: jumlah baris data = {upsell_count}")
-        else:
-            print("[WARN] Sheet 'Upsell' tidak ditemukan!")
+            upsell_count = 0
+            if "Upsell" in sheet_names:
+                df = pd.read_excel(io.BytesIO(file_bytes), sheet_name="Upsell")
+                upsell_count = len(df) - 1 if len(df) > 0 else 0
+                print(f"[DEBUG] Upsell: jumlah baris data = {upsell_count}")
+            else:
+                print("[WARN] Sheet 'Upsell' tidak ditemukan!")
 
-        # ===================== SHEET PS =====================
-        if "PS" in sheet_names:
-            update_progress(task_id, 15, "Membaca sheet PS...")
-            df = pd.read_excel(io.BytesIO(file_bytes), sheet_name="PS")
-            df.columns = [str(c).strip() for c in df.columns]
-            total_rows = len(df)
-            print(f"[DEBUG] PS: kolom = {list(df.columns)}")
-            print(f"[DEBUG] PS: jumlah baris = {total_rows}")
+            # ===================== SHEET PS =====================
+            if "PS" in sheet_names:
+                update_progress(task_id, 15, "Membaca sheet PS...")
+                df = pd.read_excel(io.BytesIO(file_bytes), sheet_name="PS")
+                df.columns = [str(c).strip() for c in df.columns]
+                total_rows = len(df)
+                print(f"[DEBUG] PS: kolom = {list(df.columns)}")
+                print(f"[DEBUG] PS: jumlah baris = {total_rows}")
 
-            for idx, (_, row) in enumerate(df.iterrows()):
-                if idx % 500 == 0:
-                    percent = 15 + int((idx / total_rows) * 30)
-                    update_progress(task_id, percent, f"Memproses PS: baris {idx}/{total_rows}")
+                for idx, (_, row) in enumerate(df.iterrows()):
+                    if idx % 500 == 0:
+                        percent = 15 + int((idx / total_rows) * 30)
+                        update_progress(task_id, percent, f"Memproses PS: baris {idx}/{total_rows}")
 
-                no = row.get('No')
-                nama_sf = row.get('Nama SF')
-                if pd.isna(no) or pd.isna(nama_sf):
-                    continue
+                    no = row.get('No')
+                    nama_sf = row.get('Nama SF')
+                    if pd.isna(no) or pd.isna(nama_sf):
+                        continue
 
-                ps_records.append({
-                    **filt,
-                    "nama_sf":   str(row.get('Nama SF', '')),
-                    "kode_sf":   str(row.get('Kode SF', '')),
-                    "nama_tl":   str(row.get('Nama TL', '')),
-                    "kode_tl":   str(row.get('Kode TL', '')),
-                    "paket":     str(row.get('Paket', '')),
-                    "kategori":  str(row.get('Kategori', '')),
-                    "arpu":      float(row.get('ARPU', 0) or 0),
-                    "tgl_ps":    int(row.get('Tgl PS', 0) or 0),
-                    "tanggal_ps": str(row.get('Tanggal PS', '')),
-                    "uploaded_by": uploader_name,
-                    "upload_at": datetime.now().strftime("%d %b %Y %H:%M WIB"),
-                })
-            update_progress(task_id, 45, f"Selesai PS ({len(ps_records)} record)")
-            print(f"[DEBUG] PS: {len(ps_records)} record")
-        else:
-            print("[WARN] Sheet PS tidak ditemukan!")
+                    ps_records.append({
+                        **filt,
+                        "nama_sf":   str(row.get('Nama SF', '')),
+                        "kode_sf":   str(row.get('Kode SF', '')),
+                        "nama_tl":   str(row.get('Nama TL', '')),
+                        "kode_tl":   str(row.get('Kode TL', '')),
+                        "paket":     str(row.get('Paket', '')),
+                        "kategori":  str(row.get('Kategori', '')),
+                        "arpu":      float(row.get('ARPU', 0) or 0),
+                        "tgl_ps":    int(row.get('Tgl PS', 0) or 0),
+                        "tanggal_ps": str(row.get('Tanggal PS', '')),
+                        "uploaded_by": uploader_name,
+                        "upload_at": datetime.now().strftime("%d %b %Y %H:%M WIB"),
+                    })
+                update_progress(task_id, 45, f"Selesai PS ({len(ps_records)} record)")
+                print(f"[DEBUG] PS: {len(ps_records)} record")
+            else:
+                print("[WARN] Sheet PS tidak ditemukan!")
 
         # ===================== SHEET DJP =====================
-        if "DJP Approve" in sheet_names:
-            update_progress(task_id, 50, "Membaca sheet DJP Approve...")
-            df = pd.read_excel(io.BytesIO(file_bytes), sheet_name="DJP Approve")
-            df.columns = [str(c).strip() for c in df.columns]
-            total_rows = len(df)
-            print(f"[DEBUG] DJP: kolom = {list(df.columns)}")
-            print(f"[DEBUG] DJP: jumlah baris = {total_rows}")
+            if "DJP Approve" in sheet_names:
+                update_progress(task_id, 50, "Membaca sheet DJP Approve...")
+                df = pd.read_excel(io.BytesIO(file_bytes), sheet_name="DJP Approve")
+                df.columns = [str(c).strip() for c in df.columns]
+                total_rows = len(df)
+                print(f"[DEBUG] DJP: kolom = {list(df.columns)}")
+                print(f"[DEBUG] DJP: jumlah baris = {total_rows}")
 
-            for idx, (_, row) in enumerate(df.iterrows()):
-                if idx % 500 == 0:
-                    percent = 50 + int((idx / total_rows) * 15)
-                    update_progress(task_id, percent, f"Memproses DJP: baris {idx}/{total_rows}")
+                for idx, (_, row) in enumerate(df.iterrows()):
+                    if idx % 500 == 0:
+                        percent = 50 + int((idx / total_rows) * 15)
+                        update_progress(task_id, percent, f"Memproses DJP: baris {idx}/{total_rows}")
 
-                schedule_id = row.get('SCHEDULE ID')
-                if pd.isna(schedule_id):
-                    continue
+                    schedule_id = row.get('SCHEDULE ID')
+                    if pd.isna(schedule_id):
+                        continue
 
-                djp_records.append({
-                    **filt,
-                    "schedule_id":     str(row.get('SCHEDULE ID', '')),
-                    "user_name":       str(row.get('USER NAME', '')),
-                    "supervisor_name": str(row.get('SUPERVISOR NAME', '')),
-                    "category":        str(row.get('SCHEDULE CATEGORY', '')),
-                    "status":          str(row.get('STATUS', '')),
-                    "tgl":             int(row.get('Tgl', 0) or 0),
-                    "uploaded_by": uploader_name,
-                    "upload_at": datetime.now().strftime("%d %b %Y %H:%M WIB"),
-                })
-            update_progress(task_id, 65, f"Selesai DJP ({len(djp_records)} record)")
-            print(f"[DEBUG] DJP: {len(djp_records)} record")
-        else:
-            print("[WARN] Sheet DJP Approve tidak ditemukan!")
-        if "KPI TL" in sheet_names:
-            df = pd.read_excel(io.BytesIO(file_bytes), sheet_name="KPI TL", header=0)
-            # Hapus baris yang semua kolomnya kosong
-            df = df.dropna(how='all')
-            kpi_tl_count = len(df)
-            print(f"[DEBUG] KPI TL: jumlah baris data valid = {kpi_tl_count}")
+                    djp_records.append({
+                        **filt,
+                        "schedule_id":     str(row.get('SCHEDULE ID', '')),
+                        "user_name":       str(row.get('USER NAME', '')),
+                        "supervisor_name": str(row.get('SUPERVISOR NAME', '')),
+                        "category":        str(row.get('SCHEDULE CATEGORY', '')),
+                        "status":          str(row.get('STATUS', '')),
+                        "tgl":             int(row.get('Tgl', 0) or 0),
+                        "uploaded_by": uploader_name,
+                        "upload_at": datetime.now().strftime("%d %b %Y %H:%M WIB"),
+                    })
+                update_progress(task_id, 65, f"Selesai DJP ({len(djp_records)} record)")
+                print(f"[DEBUG] DJP: {len(djp_records)} record")
+            else:
+                print("[WARN] Sheet DJP Approve tidak ditemukan!")
+            if "KPI TL" in sheet_names:
+                df = pd.read_excel(io.BytesIO(file_bytes), sheet_name="KPI TL", header=0)
+                # Hapus baris yang semua kolomnya kosong
+                df = df.dropna(how='all')
+                kpi_tl_count = len(df)
+                print(f"[DEBUG] KPI TL: jumlah baris data valid = {kpi_tl_count}")
 
         # ===================== SHEET DATABASE =====================
-        if "Database" in sheet_names:
-            update_progress(task_id, 70, "Membaca sheet Database...")
-            df = pd.read_excel(io.BytesIO(file_bytes), sheet_name="Database")
-            df.columns = [str(c).strip() for c in df.columns]
-            total_rows = len(df)
-            print(f"[DEBUG] Database: kolom = {list(df.columns)}")
-            print(f"[DEBUG] Database: jumlah baris = {total_rows}")
+            if "Database" in sheet_names:
+                update_progress(task_id, 70, "Membaca sheet Database...")
+                df = pd.read_excel(io.BytesIO(file_bytes), sheet_name="Database")
+                df.columns = [str(c).strip() for c in df.columns]
+                total_rows = len(df)
+                print(f"[DEBUG] Database: kolom = {list(df.columns)}")
+                print(f"[DEBUG] Database: jumlah baris = {total_rows}")
 
-            for idx, (_, row) in enumerate(df.iterrows()):
-                if idx % 500 == 0:
-                    percent = 70 + int((idx / total_rows) * 10)
-                    update_progress(task_id, percent, f"Memproses SF: baris {idx}/{total_rows}")
+                for idx, (_, row) in enumerate(df.iterrows()):
+                    if idx % 500 == 0:
+                        percent = 70 + int((idx / total_rows) * 10)
+                        update_progress(task_id, percent, f"Memproses SF: baris {idx}/{total_rows}")
 
-                no = row.get('No')
-                sales_force = row.get('Sales Force')
-                if pd.isna(no) or pd.isna(sales_force):
-                    continue
+                    no = row.get('No')
+                    sales_force = row.get('Sales Force')
+                    if pd.isna(no) or pd.isna(sales_force):
+                        continue    
 
-                db_records.append({
-                    **filt,
-                    "nama_sf":   str(row.get('Sales Force', '')),
-                    "nama_tl":   str(row.get('Team Leader', '')),
-                    "kode_tl":   str(row.get('Kode Team Leader', '')),
-                    "status_sf": str(row.get('Status SF', 'ACTIVE')),
-                    "status_tl": str(row.get('Status TL', 'ACTIVE')),
-                    "uploaded_by": uploader_name,
-                    "upload_at": datetime.now().strftime("%d %b %Y %H:%M WIB"),
-                })
-            update_progress(task_id, 80, f"Selesai SF ({len(db_records)} record)")
-            print(f"[DEBUG] Database: {len(db_records)} record")
-        else:
-            print("[WARN] Sheet Database tidak ditemukan!")
+                    db_records.append({
+                        **filt,
+                        "nama_sf":   str(row.get('Sales Force', '')),
+                        "nama_tl":   str(row.get('Team Leader', '')),
+                        "kode_tl":   str(row.get('Kode Team Leader', '')),
+                        "status_sf": str(row.get('Status SF', 'ACTIVE')),
+                        "status_tl": str(row.get('Status TL', 'ACTIVE')),
+                        "uploaded_by": uploader_name,
+                        "upload_at": datetime.now().strftime("%d %b %Y %H:%M WIB"),
+                    })
+                update_progress(task_id, 80, f"Selesai SF ({len(db_records)} record)")
+                print(f"[DEBUG] Database: {len(db_records)} record")
+            else:
+                print("[WARN] Sheet Database tidak ditemukan!")
 
-        # Validasi
-        if not ps_records and not djp_records and not db_records:
-            raise ValueError("Tidak ada data yang valid di file Excel. Periksa nama sheet, kolom, dan isi data.")
-                # ========== SIMPAN SEMUA SHEET (RAW) UNTUK VIEWER ==========
-        update_progress(task_id, 82, "Menyimpan raw data semua sheet...")
-        for sname in sheet_names:
-            df_raw = pd.read_excel(io.BytesIO(file_bytes), sheet_name=sname, header=None)
-            headers = df_raw.iloc[0].fillna("").astype(str).tolist() if len(df_raw) > 0 else []
-            data_raw = df_raw.iloc[1:].infer_objects(copy=False).fillna("").astype(str).values.tolist() if len(df_raw) > 1 else []
-            mongo.db.kpi_excel_data.update_one(
-                {"month": month, "year": year, "wok": wok, "sheet_name": sname},
+            # Validasi
+            if not ps_records and not djp_records and not db_records:
+                raise ValueError("Tidak ada data yang valid di file Excel. Periksa nama sheet, kolom, dan isi data.")
+                    # ========== SIMPAN SEMUA SHEET (RAW) UNTUK VIEWER ==========
+            update_progress(task_id, 82, "Menyimpan raw data semua sheet...")
+            for sname in sheet_names:
+                df_raw = pd.read_excel(io.BytesIO(file_bytes), sheet_name=sname, header=None)
+                headers = df_raw.iloc[0].fillna("").astype(str).tolist() if len(df_raw) > 0 else []
+                data_raw = df_raw.iloc[1:].infer_objects(copy=False).fillna("").astype(str).values.tolist() if len(df_raw) > 1 else []
+                mongo.db.kpi_excel_data.update_one(
+                    {"month": month, "year": year, "wok": wok, "sheet_name": sname},
+                    {"$set": {
+                        "sheet_name": sname,
+                        "headers": headers,
+                        "data": data_raw,
+                        "total_rows": len(data_raw),
+                        "total_cols": len(headers)
+                    }},
+                    upsert=True
+                )
+            print("[DEBUG] Semua sheet raw telah disimpan ke kpi_excel_data")
+
+            # Simpan ke MongoDB
+            update_progress(task_id, 85, "Menyimpan data PS...")
+            if ps_records:
+                mongo.db.kpi_ps.insert_many(ps_records)
+            update_progress(task_id, 90, "Menyimpan data DJP...")
+            if djp_records:
+                mongo.db.kpi_djp.insert_many(djp_records)
+            update_progress(task_id, 95, "Menyimpan data SF...")
+            if db_records:
+                mongo.db.kpi_database.insert_many(db_records)
+
+            # Metadata
+            update_progress(task_id, 98, "Menyimpan metadata...")
+            mongo.db.kpi_uploads.update_one(
+                filt,
                 {"$set": {
-                    "sheet_name": sname,
-                    "headers": headers,
-                    "data": data_raw,
-                    "total_rows": len(data_raw),
-                    "total_cols": len(headers)
+                    **filt,
+                    "filename": filename,
+                    "uploaded_by": uploader_name,
+                    "uploaded_by_id": uploader_id,
+                    "upload_at": datetime.now().strftime("%d %b %Y %H:%M WIB"),
+                    "upload_at_dt": datetime.now(),
+                    "ps_count": len(ps_records),
+                    "djp_count": len(djp_records),
+                    "sf_count": len(db_records),
+                    # METADATA BARU
+                    "absensi_mb_count": absensi_mb_count,
+                    "briefing_mb_count": briefing_mb_count,
+                    "kpi_tl_count": kpi_tl_count,
+                    "orbit_count": orbit_count,
+                    "upsell_count": upsell_count,
                 }},
                 upsert=True
             )
-        print("[DEBUG] Semua sheet raw telah disimpan ke kpi_excel_data")
-
-        # Simpan ke MongoDB
-        update_progress(task_id, 85, "Menyimpan data PS...")
-        if ps_records:
-            mongo.db.kpi_ps.insert_many(ps_records)
-        update_progress(task_id, 90, "Menyimpan data DJP...")
-        if djp_records:
-            mongo.db.kpi_djp.insert_many(djp_records)
-        update_progress(task_id, 95, "Menyimpan data SF...")
-        if db_records:
-            mongo.db.kpi_database.insert_many(db_records)
-
-        # Metadata
-        update_progress(task_id, 98, "Menyimpan metadata...")
-        mongo.db.kpi_uploads.update_one(
-            filt,
-            {"$set": {
-                **filt,
-                "filename": filename,
-                "uploaded_by": uploader_name,
-                "uploaded_by_id": uploader_id,
-                "upload_at": datetime.now().strftime("%d %b %Y %H:%M WIB"),
-                "upload_at_dt": datetime.now(),
-                "ps_count": len(ps_records),
-                "djp_count": len(djp_records),
-                "sf_count": len(db_records),
-                # METADATA BARU
-                "absensi_mb_count": absensi_mb_count,
-                "briefing_mb_count": briefing_mb_count,
-                "kpi_tl_count": kpi_tl_count,
-                "orbit_count": orbit_count,
-                "upsell_count": upsell_count,
-            }},
-            upsert=True
-        )
 
         # Selesai
-        upload_progress[task_id] = {
-            "status": "completed",
-            "percent": 100,
-            "message": "Upload dan pemrosesan berhasil!",
-            "result": {
-                "ps_count": len(ps_records),
-                "djp_count": len(djp_records),
-                "sf_count": len(db_records),
-                "sheets": sheet_names,
+            upload_progress[task_id] = {
+                "status": "completed",
+                "percent": 100,
+                "message": "Upload dan pemrosesan berhasil!",
+                "result": {
+                    "ps_count": len(ps_records),
+                    "djp_count": len(djp_records),
+                    "sf_count": len(db_records),
+                    "sheets": sheet_names,
+                }
             }
-        }
-        print("[DEBUG] Proses upload selesai.")
+            print("[DEBUG] Proses upload selesai.")
 
     except Exception as e:
         import traceback
