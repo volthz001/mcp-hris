@@ -42,6 +42,8 @@ from routes.notifications import notifications_bp
 from routes.messages import messages_bp
 from extensions import mongo, get_current_user
 from extensions import mongo as _mongo_ext
+if os.path.exists('.env'):
+    load_dotenv()
 
 # Setup logger
 logger = logging.getLogger()
@@ -72,11 +74,7 @@ app.register_blueprint(notifications_bp)
 app.register_blueprint(messages_bp)
 csrf = CSRFProtect(app)   # ← sekarang secret_key sudah ada ✓
 csrf.exempt(api_bp)
-WTF_CSRF_ENABLED = True
-# Load .env hanya jika file ada (development)
-if os.path.exists('.env'):
-    load_dotenv()
-    print("✅ Memuat konfigurasi dari file .env")
+app.config['WTF_CSRF_ENABLED'] = True
 
 # ══════════════════════════════════════════════════════════════════════════════
 # 2. SECRET KEY (WAJIB DARI ENVIRONMENT DI PRODUCTION)
@@ -110,7 +108,46 @@ limiter = Limiter(
 
 # ✅ 4. Baru init mongo (sekarang app.config["MONGO_URI"] sudah ada)
 mongo.init_app(app)
+# ══════════════════════════════════════════════════════════════════════════════
+# MONGODB INDEXES — jalankan sekali saat startup
+# ══════════════════════════════════════════════════════════════════════════════
+def setup_indexes():
+    db = mongo.db
+    # Users
+    db.users.create_index("username", unique=True)
+    # Kasbon
+    db.kasbon.create_index([("user_id",1),("status",1)])
+    db.kasbon.create_index([("bulan",1),("tahun",1)])
+    # Absensi
+    db.absensi.create_index([("user_id",1),("tanggal",1)], unique=True)
+    db.absensi.create_index("tanggal")
+    # KPI
+    db.kpi_uploads.create_index([("month",1),("year",1),("wok",1)], unique=True)
+    db.kpi_ps.create_index([("month",1),("year",1),("wok",1)])
+    db.kpi_djp.create_index([("month",1),("year",1),("wok",1)])
+    db.kpi_database.create_index([("month",1),("year",1),("wok",1)])
+    # Messages
+    db.messages.create_index([("to_id",1),("is_read",1)])
+    db.messages.create_index([("from_id",1),("created_at",-1)])
+    db.messages.create_index("starred_by")
+    # Notifications
+    db.notifications.create_index("target_ids")
+    db.notifications.create_index("target_all")
+    db.notifications.create_index([("from_id",1),("created_at",-1)])
+    db.notifications.create_index("reads.user_id")
+    print("✅ MongoDB indexes ready")
+    # Di dalam setup_indexes(), tambahkan:
+    db.password_resets.create_index("expires_at", expireAfterSeconds=3600)  # Auto-delete after 1 hour
+    db.password_resets.create_index("token")
+    db.password_resets.create_index("user_id")
 
+with app.app_context():
+    try:
+        setup_indexes()
+    except Exception as e:
+        print(f"[WARN] Index setup gagal: {e}")
+
+    
 # ✅ 5. Baru buat MongoClient untuk connection pool langsung
 client = MongoClient(
     MONGO_URI,
@@ -2174,7 +2211,7 @@ def get_kpi_data_for_month(month, year, wok):
 
     # ========== 2. METADATA UPLOAD ==========
     upload_info = mongo.db.kpi_uploads.find_one(filt, {"_id": 0})
-    absensi_mb_count = upload_info.get("absensi_mb_count", 0) if upload_info else 0
+    #absensi_mb_count = upload_info.get("absensi_mb_count", 0) if upload_info else 0
     kpi_tl_count = upload_info.get("kpi_tl_count", 0) if upload_info else 0
     orbit_count = upload_info.get("orbit_count", 0) if upload_info else 0
     upsell_count = upload_info.get("upsell_count", 0) if upload_info else 0
@@ -2237,7 +2274,7 @@ def get_kpi_data_for_month(month, year, wok):
             k = d.get("supervisor_name", "—") or "—"
             tl_djp[k] = tl_djp.get(k, 0) + 1
     tl_djp_sorted = sorted(tl_djp.items(), key=lambda x: x[1], reverse=True)
-    total_briefing = len([d for d in djp_approved if d.get("category") == "BRIEFING"])
+   # total_briefing = len([d for d in djp_approved if d.get("category") == "BRIEFING"])
     
     # ========== 5. SF (DATABASE) – AKTIF / NONAKTIF ==========
     sf_active = len([d for d in db_docs if d.get("status_sf") == "ACTIVE"])
@@ -2722,8 +2759,14 @@ def api_excel_data():
     search = request.args.get("search", "").strip()
     
     # Ambil data dari MongoDB
-    sheet_data = mongo.db.kpi_excel_data.find_one({"sheet_name": sheet_name})
-    
+    #sheet_data = mongo.db.kpi_excel_data.find_one({"sheet_name": sheet_name})
+    month = int(request.args.get("month", date.today().month))
+    year  = int(request.args.get("year",  date.today().year))
+    wok   = request.args.get("wok", "").upper()
+    sheet_data = mongo.db.kpi_excel_data.find_one({
+    "sheet_name": sheet_name,
+    "month": month, "year": year, "wok": wok
+    })
     if not sheet_data:
         return jsonify({"success": False, "message": f"Sheet '{sheet_name}' tidak ditemukan"}), 404
     
@@ -2760,40 +2803,6 @@ def api_excel_data():
         "startRow": start_idx,
         "endRow": end_idx - 1 if end_idx > 0 else 0
     })
-# ══════════════════════════════════════════════════════════════════════════════
-# MONGODB INDEXES — jalankan sekali saat startup
-# ══════════════════════════════════════════════════════════════════════════════
-def setup_indexes():
-    db = mongo.db
-    # Users
-    db.users.create_index("username", unique=True)
-    # Kasbon
-    db.kasbon.create_index([("user_id",1),("status",1)])
-    db.kasbon.create_index([("bulan",1),("tahun",1)])
-    # Absensi
-    db.absensi.create_index([("user_id",1),("tanggal",1)], unique=True)
-    db.absensi.create_index("tanggal")
-    # KPI
-    db.kpi_uploads.create_index([("month",1),("year",1),("wok",1)], unique=True)
-    db.kpi_ps.create_index([("month",1),("year",1),("wok",1)])
-    db.kpi_djp.create_index([("month",1),("year",1),("wok",1)])
-    db.kpi_database.create_index([("month",1),("year",1),("wok",1)])
-    # Messages
-    db.messages.create_index([("to_id",1),("is_read",1)])
-    db.messages.create_index([("from_id",1),("created_at",-1)])
-    db.messages.create_index("starred_by")
-    # Notifications
-    db.notifications.create_index("target_ids")
-    db.notifications.create_index("target_all")
-    db.notifications.create_index([("from_id",1),("created_at",-1)])
-    db.notifications.create_index("reads.user_id")
-    print("✅ MongoDB indexes ready")
-    # Di dalam setup_indexes(), tambahkan:
-    db.password_resets.create_index("expires_at", expireAfterSeconds=3600)  # Auto-delete after 1 hour
-    db.password_resets.create_index("token")
-    db.password_resets.create_index("user_id")
- 
- 
 # ── API unread counts ──────────────────────────────────────────────────────────
 @app.route("/api/unread-counts")
 @limiter.exempt
@@ -2885,7 +2894,7 @@ def report_harian():
         'hadir':  sum(1 for a in absensi_hari if a.get('status') == 'hadir'),
         'izin':   sum(1 for a in absensi_hari if a.get('status') == 'izin'),
         'sakit':  sum(1 for a in absensi_hari if a.get('status') == 'sakit'),
-    '    alpha':  sum(1 for a in absensi_hari if a.get('status') not in ['hadir', 'izin', 'sakit']),
+        'alpha': sum(1 for a in absensi_hari if a.get('status') not in ['hadir', 'izin', 'sakit']),
     }
 
     # ── Hitung ringkasan kasbon ───────────────────────────
@@ -3369,7 +3378,11 @@ def api_kpi_check():
     })
 
 app.register_blueprint(payroll_bp)
-
+with app.app_context():
+    try:
+        setup_indexes()
+    except Exception as e:
+        print(f"[WARN] Index setup gagal: {e}")
 if __name__ == '__main__':
     with app.app_context():
         try: setup_indexes()
