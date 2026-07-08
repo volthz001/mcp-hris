@@ -14,7 +14,7 @@ from flask_cors import CORS
 from flask_limiter.util import get_remote_address
 import os, io, calendar, json
 import hashlib
-import hmac
+import hmac,base6
 from functools import wraps
 import threading
 import pytz
@@ -446,6 +446,67 @@ def _build_slip(karyawan: dict, periode: str, period_id, mongo) -> dict:
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
+# ─── MAWI TEST ENDPOINT ────────────────────────────────────────────────
+@app.route("/mawi", methods=["GET"])
+def mawi():
+    """
+    Endpoint uji coba — return JSON summary semua collection utama.
+    HAPUS atau PROTEKSI dengan @login_required sebelum go public.
+    """
+    try:
+        result = {}
+
+        # 1. Koneksi DB
+        result["status"] = "ok"
+        result["db"] = db.name if db else "tidak terhubung"
+
+        # 2. Jumlah dokumen per collection
+        result["counts"] = {
+            "users"     : db.users.count_documents({}),
+            "kasbon"    : db.kasbon.count_documents({}),
+            "absensi"   : db.absensi.count_documents({}),
+            "kpi"       : db.kpi.count_documents({}),
+            "messages"  : db.messages.count_documents({}) if "messages" in db.list_collection_names() else 0,
+        }
+
+        # 3. Sample 3 user (tanpa password)
+        users_sample = list(db.users.find(
+            {},
+            {"password": 0, "_id": 0}
+        ).limit(3))
+        result["users_sample"] = users_sample
+
+        # 4. Sample 3 kasbon terbaru
+        kasbon_sample = list(db.kasbon.find(
+            {},
+            {"_id": 0}
+        ).sort("tanggal", -1).limit(3))
+        result["kasbon_sample"] = kasbon_sample
+
+        # 5. Sample 3 absensi terbaru
+        absensi_sample = list(db.absensi.find(
+            {},
+            {"_id": 0}
+        ).sort("tanggal", -1).limit(3))
+        result["absensi_sample"] = absensi_sample
+
+        # 6. Config app (non-sensitive)
+        result["config"] = {
+            "debug"         : app.debug,
+            "env"           : app.env if hasattr(app, "env") else "unknown",
+            "csrf_enabled"  : True,
+        }
+
+        return jsonify(result), 200
+
+    except Exception as e:
+        return jsonify({
+            "status" : "error",
+            "message": str(e)
+        }), 500
+# ─── END MAWI ──────────────────────────────────────────────────────────
+
+
 
 @payroll_bp.route('/')
 @_login_required
@@ -749,51 +810,41 @@ def login():
         return redirect(url_for("dashboard"))
 
     return render_template("login.html")
-def generate_reset_token(user_id, expires_hours=1):
-    """Generate token reset password yang aman"""
-    expiry = datetime.now() + timedelta(hours=expires_hours)
-    # Buat string unique: user_id + expiry + secret_key
-    data = f"{user_id}|{expiry.isoformat()}"
+def generate_reset_token(email):
+    data = f"{email}:{int(time.time())}"
     signature = hmac.new(
-        key=app.secret_key.encode('utf-8'),
-        msg=data.encode('utf-8'),
-        digestmod=hashlib.sha256
+        app.secret_key.encode('utf-8'),
+        data.encode('utf-8'),
+        hashlib.sha256
     ).hexdigest()
-    token = f"{user_id}|{expiry.isoformat()}|{signature}"
-    # Encode to base64 untuk URL safety
-    return secrets.token_urlsafe(32) + "|" + token
-def verify_reset_token(token):
-    """Verifikasi token reset password, return user_id jika valid"""
+    token = base64.urlsafe_b64encode(f"{data}:{signature}".encode()).decode()
+    return token
+
+def verify_reset_token(token, max_age=3600):
     try:
-        parts = token.split('|')
-        if len(parts) < 4:
+        decoded = base64.urlsafe_b64decode(token.encode()).decode()
+        parts = decoded.rsplit(":", 2)
+        if len(parts) != 3:
             return None
-        
-        # Extract parts (token_random|user_id|expiry|signature)
-        token_random = parts[0]
-        user_id = parts[1]
-        expiry_str = parts[2]
-        signature = parts[3] if len(parts) > 3 else None
-        
-        # Verify expiry
-        expiry = datetime.fromisoformat(expiry_str)
-        if expiry < datetime.now():
-            return None
-        
-        # Verify signature
-        data = f"{user_id}|{expiry_str}"
+        email, timestamp, signature = parts[0], parts[1], parts[2]
+        data = f"{email}:{timestamp}"
         expected = hmac.new(
-            key=app.secret_key.encode('utf-8'),
-            msg=data.encode('utf-8'),
-            digestmod=hashlib.sha256
+            app.secret_key.encode('utf-8'),
+            data.encode('utf-8'),
+            hashlib.sha256
         ).hexdigest()
-        
+
+        # Timing-safe comparison — WAJIB, jangan pakai ==
         if not hmac.compare_digest(signature, expected):
             return None
-        
-        return user_id
-    except Exception as e:
-        print(f"Token verification error: {e}")
+
+        # Cek expiry
+        if int(time.time()) - int(timestamp) > max_age:
+            return None
+
+        return email
+
+    except Exception:
         return None
 @app.route("/register", methods=["GET", "POST"])
 @csrf.exempt
