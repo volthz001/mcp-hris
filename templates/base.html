@@ -630,19 +630,18 @@
 
 /* ── OVERLAY ── */
 .sidebar-overlay {
-  display: none;
   position: fixed; inset: 0;
   background: rgba(0,0,0,0.6);
   z-index: 99;
   backdrop-filter: blur(2px);
   opacity: 0;
+  pointer-events: none;
   transition: opacity 0.3s ease;
 }
 .sidebar-overlay.active {
-  display: block;
   opacity: 1;
+  pointer-events: auto;
 }
-
 /* ── MOBILE OVERRIDES ── */
 @media (max-width: 768px) {
   .hamburger-btn { display: inline-flex; }
