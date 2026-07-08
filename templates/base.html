@@ -616,6 +616,43 @@
       .page-body { padding: 20px; }
       .topbar { padding: 12px 20px; }
     }
+    /* ── HAMBURGER BUTTON ── */
+.hamburger-btn {
+  display: none;
+  align-items: center; justify-content: center;
+  width: 36px; height: 36px;
+  background: var(--bg-hover); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); color: var(--text-secondary);
+  font-size: 18px; cursor: pointer; transition: all 0.2s;
+  flex-shrink: 0;
+}
+.hamburger-btn:hover { background: var(--accent-dim); color: var(--accent); border-color: var(--accent); }
+
+/* ── OVERLAY ── */
+.sidebar-overlay {
+  display: none;
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.6);
+  z-index: 99;
+  backdrop-filter: blur(2px);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+.sidebar-overlay.active {
+  display: block;
+  opacity: 1;
+}
+
+/* ── MOBILE OVERRIDES ── */
+@media (max-width: 768px) {
+  .hamburger-btn { display: inline-flex; }
+  .sidebar {
+    transform: translateX(-100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 200;
+  }
+  .sidebar.open { transform: translateX(0); }
+}
   </style>
   {% block extra_style %}{% endblock %}
 </head>
@@ -623,6 +660,7 @@
 
 {% if session.user_id %}
 <aside class="sidebar">
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
   <div class="sidebar-brand">
     <img src="{{ url_for('static', filename='img/logo_mcp.png') }}"
          alt="Logo PT MCP" class="brand-logo">
@@ -738,10 +776,13 @@
 <div class="main-content">
   {% if session.user_id %}
   <div class="topbar">
+  <div style="display:flex;align-items:center;gap:12px;">
+    <button class="hamburger-btn" id="sidebarToggle" title="Menu">☰</button>
     <div>
       <div class="topbar-title">{% block page_title %}Dashboard{% endblock %}</div>
       <div class="topbar-breadcrumb">{% block breadcrumb %}Beranda{% endblock %}</div>
     </div>
+  </div>
     <div class="topbar-right">
       <span class="topbar-date" id="clock"></span>
 
@@ -870,7 +911,72 @@
   poll(); setInterval(poll, 15000);
 })();
 {% endif %}
+/* ── SIDEBAR SWIPE & TOGGLE ── */
+(function(){
+  const sidebar  = document.querySelector('.sidebar');
+  const overlay  = document.getElementById('sidebarOverlay');
+  const toggleBtn = document.getElementById('sidebarToggle');
+  if(!sidebar) return;
+
+  function openSidebar(){
+    sidebar.classList.add('open');
+    overlay.classList.add('active');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeSidebar(){
+    sidebar.classList.remove('open');
+    overlay.classList.remove('active');
+    document.body.style.overflow = '';
+  }
+
+  if(toggleBtn) toggleBtn.addEventListener('click', () => {
+    sidebar.classList.contains('open') ? closeSidebar() : openSidebar();
+  });
+
+  overlay.addEventListener('click', closeSidebar);
+
+  // Tutup sidebar saat klik nav item (mobile UX)
+  sidebar.querySelectorAll('.nav-item a').forEach(a => {
+    a.addEventListener('click', () => {
+      if(window.innerWidth <= 768) closeSidebar();
+    });
+  });
+
+  // ── SWIPE GESTURE ──
+  let touchStartX = 0;
+  let touchStartY = 0;
+  const SWIPE_THRESHOLD = 50;   // px minimum untuk trigger
+  const EDGE_ZONE = 30;         // px dari kiri untuk open gesture
+
+  document.addEventListener('touchstart', e => {
+    touchStartX = e.touches[0].clientX;
+    touchStartY = e.touches[0].clientY;
+  }, { passive: true });
+
+  document.addEventListener('touchend', e => {
+    const dx = e.changedTouches[0].clientX - touchStartX;
+    const dy = e.changedTouches[0].clientY - touchStartY;
+
+    // Pastikan gesture lebih horizontal dari vertikal
+    if(Math.abs(dx) < Math.abs(dy)) return;
+    if(Math.abs(dx) < SWIPE_THRESHOLD) return;
+
+    if(dx > 0 && touchStartX < EDGE_ZONE) {
+      // Swipe kanan dari tepi kiri → buka sidebar
+      openSidebar();
+    } else if(dx < 0 && sidebar.classList.contains('open')) {
+      // Swipe kiri saat sidebar terbuka → tutup
+      closeSidebar();
+    }
+  }, { passive: true });
+
+  // Tutup dengan Escape
+  document.addEventListener('keydown', e => {
+    if(e.key === 'Escape') closeSidebar();
+  });
+})();
 </script>
+  
 {% block extra_script %}{% endblock %}
 </body>
 </html>
