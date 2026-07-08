@@ -3330,16 +3330,15 @@ def process_kpi_upload_background(task_id, file_bytes, filename, month, year, wo
             }
             print("[DEBUG] Proses upload selesai.")
 
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        upload_progress[task_id] = {
-            "status": "error",
-            "percent": 0,
-            "message": str(e)
-        }
-        print(f"[ERROR] Upload gagal: {e}")
-
+        except Exception as e: # ← level 2, match dengan try ✓
+            import traceback
+            traceback.print_exc()
+            upload_progress[task_id] = {
+                "status": "error",
+                "percent": 0,
+                "message": str(e)
+            }
+            print(f"[ERROR] Upload gagal: {e}")
 @app.route("/api/kpi-check")
 @login_required
 def api_kpi_check():
