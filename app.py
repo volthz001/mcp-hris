@@ -55,10 +55,21 @@ logger.setLevel(logging.INFO)
 # 1. KONFIGURASI ENVIRONMENT (WAJIB ADA)
 # ══════════════════════════════════════════════════════════════════════════════
 app = Flask(__name__)
+
+# ✅ Set secret_key DULU sebelum apapun
+SECRET_KEY = os.environ.get("SECRET_KEY")
+if not SECRET_KEY:
+    if os.environ.get("FLASK_ENV") == 'production':
+        raise ValueError("SECRET_KEY harus diset di environment variable!")
+    else:
+        SECRET_KEY = secrets.token_hex(32)
+app.secret_key = SECRET_KEY           # ← WAJIB sebelum CSRFProtect
+app.config["SECRET_KEY"] = SECRET_KEY # ← backup untuk flask-wtf
+
 app.register_blueprint(home_bp)
 app.register_blueprint(notifications_bp)
 app.register_blueprint(messages_bp)
-csrf = CSRFProtect(app)
+csrf = CSRFProtect(app)   # ← sekarang secret_key sudah ada ✓
 csrf.exempt(api_bp)
 WTF_CSRF_ENABLED = True
 # Load .env hanya jika file ada (development)
